@@ -5,17 +5,17 @@
 
 #define HASH_SIZE 256
 
-/* --- ESTRUCTURA DE DATOS: HASH MAP GENÉRICO --- */
+/* =========================================================================
+   1. ESTRUCTURAS DE DATOS: HASH MAPS (Tabla de Símbolos y Literales)
+   ========================================================================= */
 typedef struct HashNode {
     char* value;
     struct HashNode* next;
 } HashNode;
 
-/* Dos tablas Hash independientes */
 HashNode* idTable[HASH_SIZE] = {NULL};
 HashNode* literalTable[HASH_SIZE] = {NULL};
 
-/* Función Hash (djb2) */
 unsigned int hash(const char* str) {
     unsigned long hash_val = 5381;
     int c;
@@ -25,13 +25,12 @@ unsigned int hash(const char* str) {
     return hash_val % HASH_SIZE;
 }
 
-/* Función genérica para insertar en una tabla específica */
 void insert_into_table(HashNode** table, const char* value, const char* table_name) {
     unsigned int index = hash(value);
     HashNode* curr = table[index];
     
     while(curr != NULL) {
-        if(strcmp(curr->value, value) == 0) return; // Evitar duplicados
+        if(strcmp(curr->value, value) == 0) return; 
         curr = curr->next;
     }
     
@@ -40,12 +39,11 @@ void insert_into_table(HashNode** table, const char* value, const char* table_na
     new_node->next = table[index];
     table[index] = new_node;
     
-    printf(" [Registrado en %s (Bucket %d): %s] ", table_name, index, value);
+    printf(" [Registrado en %s: %s] ", table_name, value);
 }
 
-/* Función genérica para imprimir una tabla */
 void print_table(HashNode** table, const char* title) {
-    printf("\n\n--- %s ---\n", title);
+    printf("\n--- %s ---\n", title);
     int empty = 1;
     for(int i = 0; i < HASH_SIZE; i++) {
         if(table[i] != NULL) {
@@ -62,11 +60,71 @@ void print_table(HashNode** table, const char* title) {
     if (empty) printf("La tabla está vacía.\n");
 }
 
-/* --- ESTRUCTURA DE DATOS: PILA DE INDENTACIÓN --- */
+/* =========================================================================
+   2. ESTRUCTURA DE DATOS: PILA DE INDENTACIÓN
+   ========================================================================= */
 #define MAX_DEPTH 100
 int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
 
+
+/* =========================================================================
+   3. ESTRUCTURA DE DATOS: SCANNER OUTPUT (Double Linked List)
+   ========================================================================= */
+typedef struct TokenNode {
+    char* token_name;
+    char* lexeme;
+    struct TokenNode* prev;
+    struct TokenNode* next;
+} TokenNode;
+
+TokenNode* scanner_head = NULL;
+TokenNode* scanner_tail = NULL;
+
+/* Función que reemplaza los printf directos: Inserta en la DLL e imprime */
+void add_token(const char* token_name, const char* lexeme) {
+    // 1. Crear el nuevo nodo y enlazarlo
+    TokenNode* new_node = (TokenNode*)malloc(sizeof(TokenNode));
+    new_node->token_name = strdup(token_name);
+    new_node->lexeme = strdup(lexeme);
+    new_node->prev = scanner_tail;
+    new_node->next = NULL;
+
+    if (scanner_tail != NULL) {
+        scanner_tail->next = new_node;
+    } else {
+        scanner_head = new_node; // Si la lista estaba vacía
+    }
+    scanner_tail = new_node;
+
+    // 2. Imprimir en pantalla para feedback visual
+    if (strcmp(token_name, "NEWLINE") == 0) {
+        printf("\n<NEWLINE>\n");
+    } else if (strcmp(token_name, "INDENT") == 0 || strcmp(token_name, "DEDENT") == 0) {
+        printf("<%s> ", token_name);
+    } else if (strcmp(token_name, "IDENTIFIER") == 0 || 
+               strstr(token_name, "LITERAL") != NULL || 
+               strcmp(token_name, "TL_IDENTIFIER") == 0) {
+        printf("<%s: %s> ", token_name, lexeme);
+    } else {
+        printf("<%s> ", token_name);
+    }
+}
+
+/* Función para imprimir el contenido de la Double Linked List al final */
+void print_scanner_output() {
+    TokenNode* curr = scanner_head;
+    while (curr != NULL) {
+        if (strlen(curr->lexeme) > 0) {
+            // Formato con atributo: <token, lexema>
+            printf("<%s,%s>\n", curr->token_name, curr->lexeme);
+        } else {
+            // Formato sin atributo: <token>
+            printf("<%s>\n", curr->token_name);
+        }
+        curr = curr->next;
+    }
+}
 %}
 
 extern FILE *yyin;
@@ -77,11 +135,11 @@ HEX             [0-9a-fA-F]
 
 %%
 
-    /* 1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN (CON PILA) */
+    /* 1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN */
 [ \t]+          { /* Ignorar espacios en medio de la línea */ }
 
 \n[ \t]*|\r\n[ \t]* { 
-    printf("\n<NEWLINE>\n"); 
+    add_token("NEWLINE", ""); 
     
     int current_indent = 0;
     for(int i = 0; yytext[i] != '\0'; i++) {
@@ -92,14 +150,14 @@ HEX             [0-9a-fA-F]
     if (current_indent > indent_stack[top]) {
         if (top < MAX_DEPTH - 1) {
             indent_stack[++top] = current_indent;
-            printf("<INDENT> ");
+            add_token("INDENT", "");
         } else {
             printf("[ERROR: Nivel de indentación máximo superado]");
         }
     } else if (current_indent < indent_stack[top]) {
         while (top > 0 && indent_stack[top] > current_indent) {
             top--;
-            printf("<DEDENT> ");
+            add_token("DEDENT", "");
         }
         if (indent_stack[top] != current_indent) {
             printf("[ERROR: Indentación inconsistente] ");
@@ -108,95 +166,98 @@ HEX             [0-9a-fA-F]
 }
 
     /* 2) COMENTARIOS */
-#.* { printf("<COMMENT>"); }
+#.* { add_token("COMMENT", yytext); }
 
     /* 4) PALABRAS RESERVADAS */
-"def"           { printf("<KW_DEF>"); }
-"if"            { printf("<KW_IF>"); }
-"elif"          { printf("<KW_ELIF>"); }
-"else"          { printf("<KW_ELSE>"); }
-"for"           { printf("<KW_FOR>"); }
-"while"         { printf("<KW_WHILE>"); }
-"in"            { printf("<KW_IN>"); }
-"break"         { printf("<KW_BREAK>"); }
-"continue"      { printf("<KW_CONTINUE>"); }
-"return"        { printf("<KW_RETURN>"); }
-"pass"          { printf("<KW_PASS>"); }
-"and"           { printf("<KW_AND>"); }
-"or"            { printf("<KW_OR>"); }
-"not"           { printf("<KW_NOT>"); }
-"is"            { printf("<KW_IS>"); }
-"True"          { printf("<KW_TRUE>"); }
-"False"         { printf("<KW_FALSE>"); }
-"None"          { printf("<KW_NONE>"); }
+"def"           { add_token("KW_DEF", yytext); }
+"if"            { add_token("KW_IF", yytext); }
+"elif"          { add_token("KW_ELIF", yytext); }
+"else"          { add_token("KW_ELSE", yytext); }
+"for"           { add_token("KW_FOR", yytext); }
+"while"         { add_token("KW_WHILE", yytext); }
+"in"            { add_token("KW_IN", yytext); }
+"break"         { add_token("KW_BREAK", yytext); }
+"continue"      { add_token("KW_CONTINUE", yytext); }
+"return"        { add_token("KW_RETURN", yytext); }
+"pass"          { add_token("KW_PASS", yytext); }
+"and"           { add_token("KW_AND", yytext); }
+"or"            { add_token("KW_OR", yytext); }
+"not"           { add_token("KW_NOT", yytext); }
+"is"            { add_token("KW_IS", yytext); }
+"True"          { add_token("KW_TRUE", yytext); }
+"False"         { add_token("KW_FALSE", yytext); }
+"None"          { add_token("KW_NONE", yytext); }
 
     /* 11) TOKENS TRITON */
-tl\.{LETTER}({LETTER}|{DIGIT})* { printf("<TL_IDENTIFIER: %s>", yytext); }
+tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
 
     /* 3) IDENTIFICADORES */
 {LETTER}({LETTER}|{DIGIT})* { 
-    printf("<IDENTIFIER: %s>", yytext); 
+    add_token("IDENTIFIER", yytext); 
     insert_into_table(idTable, yytext, "Tabla_ID"); 
 }
 
-    /* 5) LITERALES NUMÉRICOS (A la nueva tabla) Y DE TEXTO */
+    /* 5) LITERALES NUMÉRICOS Y DE TEXTO */
 0|[1-9]{DIGIT}*|0[xX]{HEX}+ { 
-    printf("<INT_LITERAL: %s>", yytext); 
+    add_token("INT_LITERAL", yytext); 
     insert_into_table(literalTable, yytext, "Tabla_Num");
 }
 ({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+ { 
-    printf("<FLOAT_LITERAL: %s>", yytext); 
+    add_token("FLOAT_LITERAL", yytext); 
     insert_into_table(literalTable, yytext, "Tabla_Num");
 }
-\"([^"\\\n]|\\.)*\"|\'([^'\\\n]|\\.)*\' { printf("<STRING_LITERAL>"); }
+\"([^"\\\n]|\\.)*\"|\'([^'\\\n]|\\.)*\' { add_token("STRING_LITERAL", yytext); }
 
     /* 7) OPERADORES DE ASIGNACIÓN */
-"="             { printf("<OP_ASSIGN>"); }
+"="             { add_token("OP_ASSIGN", yytext); }
 
     /* 6) OPERADORES ARITMÉTICOS */
-"//"            { printf("<OP_DOUBLE_SLASH>"); }
-"+"             { printf("<OP_PLUS>"); }
-"-"             { printf("<OP_MINUS>"); }
-"*"             { printf("<OP_STAR>"); }
-"/"             { printf("<OP_SLASH>"); }
-"%"             { printf("<OP_MOD>"); }
+"//"            { add_token("OP_DOUBLE_SLASH", yytext); }
+"+"             { add_token("OP_PLUS", yytext); }
+"-"             { add_token("OP_MINUS", yytext); }
+"*"             { add_token("OP_STAR", yytext); }
+"/"             { add_token("OP_SLASH", yytext); }
+"%"             { add_token("OP_MOD", yytext); }
 
     /* 8) OPERADORES RELACIONALES */
-"<="            { printf("<OP_LE>"); }
-">="            { printf("<OP_GE>"); }
-"=="            { printf("<OP_EQ>"); }
-"!="            { printf("<OP_NEQ>"); }
-"<"             { printf("<OP_LT>"); }
-">"             { printf("<OP_GT>"); }
+"<="            { add_token("OP_LE", yytext); }
+">="            { add_token("OP_GE", yytext); }
+"=="            { add_token("OP_EQ", yytext); }
+"!="            { add_token("OP_NEQ", yytext); }
+"<"             { add_token("OP_LT", yytext); }
+">"             { add_token("OP_GT", yytext); }
 
     /* 9) OPERADORES BIT A BIT */
-"<<"            { printf("<OP_LSHIFT>"); }
-">>"            { printf("<OP_RSHIFT>"); }
-"&"             { printf("<OP_BIT_AND>"); }
-"|"             { printf("<OP_BIT_OR>"); }
-"^"             { printf("<OP_BIT_XOR>"); }
-"~"             { printf("<OP_BIT_NOT>"); }
+"<<"            { add_token("OP_LSHIFT", yytext); }
+">>"            { add_token("OP_RSHIFT", yytext); }
+"&"             { add_token("OP_BIT_AND", yytext); }
+"|"             { add_token("OP_BIT_OR", yytext); }
+"^"             { add_token("OP_BIT_XOR", yytext); }
+"~"             { add_token("OP_BIT_NOT", yytext); }
 
     /* 10) DELIMITADORES */
-"->"            { printf("<ARROW>"); }
-"("             { printf("<LPAREN>"); }
-")"             { printf("<RPAREN>"); }
-"["             { printf("<LBRACKET>"); }
-"]"             { printf("<RBRACKET>"); }
-"{"             { printf("<LBRACE>"); }
-"}"             { printf("<RBRACE>"); }
-","             { printf("<COMMA>"); }
-":"             { printf("<COLON>"); }
-"."             { printf("<DOT>"); }
-";"             { printf("<SEMICOLON>"); }
-"@"             { printf("<AT>"); }
+"->"            { add_token("ARROW", yytext); }
+"("             { add_token("LPAREN", yytext); }
+")"             { add_token("RPAREN", yytext); }
+"["             { add_token("LBRACKET", yytext); }
+"]"             { add_token("RBRACKET", yytext); }
+"{"             { add_token("LBRACE", yytext); }
+"}"             { add_token("RBRACE", yytext); }
+","             { add_token("COMMA", yytext); }
+":"             { add_token("COLON", yytext); }
+"."             { add_token("DOT", yytext); }
+";"             { add_token("SEMICOLON", yytext); }
+"@"             { add_token("AT", yytext); }
 
     /* 12) FIN DE ARCHIVO */
 <<EOF>>         { 
                     while(top > 0) {
-                        printf("\n<DEDENT> (EOF)");
+                        add_token("DEDENT", "");
                         top--;
                     }
+                    
+                    // Al terminar, mostramos todas las estructuras
+                    print_scanner_output();
                     print_table(idTable, "TABLA DE IDENTIFICADORES");
                     print_table(literalTable, "TABLA DE LITERALES NUMERICOS");
                     return 0; 
