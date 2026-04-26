@@ -11,7 +11,6 @@
 typedef struct HashNode {
     char* value;
     struct HashNode* next;
-    
 } HashNode;
 
 HashNode* idTable[HASH_SIZE] = {NULL};
