@@ -11,6 +11,7 @@
 typedef struct HashNode {
     char* value;
     struct HashNode* next;
+    
 } HashNode;
 
 HashNode* idTable[HASH_SIZE] = {NULL};
@@ -113,19 +114,17 @@ void add_token(const char* token_name, const char* lexeme) {
 
 /* Función para imprimir el contenido de la Double Linked List al final */
 void print_scanner_output() {
-    printf("\n--- SCANNER OUTPUT (Double Linked List) ---\n");
     TokenNode* curr = scanner_head;
     while (curr != NULL) {
-        if (strcmp(curr->token_name, "NEWLINE") == 0) {
-            printf("[NEWLINE]\n");
-        } else if (strlen(curr->lexeme) > 0) {
-            printf("[%s: %s] <-> ", curr->token_name, curr->lexeme);
+        if (strlen(curr->lexeme) > 0) {
+            // Formato con atributo: <token, lexema>
+            printf("<%s,%s>\n", curr->token_name, curr->lexeme);
         } else {
-            printf("[%s] <-> ", curr->token_name);
+            // Formato sin atributo: <token>
+            printf("<%s>\n", curr->token_name);
         }
         curr = curr->next;
     }
-    printf("NULL\n\n");
 }
 %}
 
