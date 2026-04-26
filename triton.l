@@ -5,14 +5,17 @@
 
 #define HASH_SIZE 256
 
-/* --- ESTRUCTURA DE DATOS: HASH MAP CON CHAINING --- */
+/* --- ESTRUCTURA DE DATOS: HASH MAP GENÉRICO --- */
 typedef struct HashNode {
-    char* name;
+    char* value;
     struct HashNode* next;
 } HashNode;
 
-HashNode* hashTable[HASH_SIZE] = {NULL};
+/* Dos tablas Hash independientes */
+HashNode* idTable[HASH_SIZE] = {NULL};
+HashNode* literalTable[HASH_SIZE] = {NULL};
 
+/* Función Hash (djb2) */
 unsigned int hash(const char* str) {
     unsigned long hash_val = 5381;
     int c;
@@ -22,33 +25,35 @@ unsigned int hash(const char* str) {
     return hash_val % HASH_SIZE;
 }
 
-void insert_identifier(const char* name) {
-    unsigned int index = hash(name);
-    HashNode* curr = hashTable[index];
+/* Función genérica para insertar en una tabla específica */
+void insert_into_table(HashNode** table, const char* value, const char* table_name) {
+    unsigned int index = hash(value);
+    HashNode* curr = table[index];
     
     while(curr != NULL) {
-        if(strcmp(curr->name, name) == 0) return; 
+        if(strcmp(curr->value, value) == 0) return; // Evitar duplicados
         curr = curr->next;
     }
     
     HashNode* new_node = (HashNode*)malloc(sizeof(HashNode));
-    new_node->name = strdup(name);
-    new_node->next = hashTable[index];
-    hashTable[index] = new_node;
+    new_node->value = strdup(value);
+    new_node->next = table[index];
+    table[index] = new_node;
     
-    printf(" [Registrado en Hash Map: %s] ", name);
+    printf(" [Registrado en %s (Bucket %d): %s] ", table_name, index, value);
 }
 
-void print_hash_map() {
-    printf("\n\n--- TABLA DE SÍMBOLOS (HASH MAP) ---\n");
+/* Función genérica para imprimir una tabla */
+void print_table(HashNode** table, const char* title) {
+    printf("\n\n--- %s ---\n", title);
     int empty = 1;
     for(int i = 0; i < HASH_SIZE; i++) {
-        if(hashTable[i] != NULL) {
+        if(table[i] != NULL) {
             empty = 0;
             printf("Bucket %03d: ", i);
-            HashNode* curr = hashTable[i];
+            HashNode* curr = table[i];
             while(curr != NULL) {
-                printf("[%s] -> ", curr->name);
+                printf("[%s] -> ", curr->value);
                 curr = curr->next;
             }
             printf("NULL\n");
@@ -59,7 +64,7 @@ void print_hash_map() {
 
 /* --- ESTRUCTURA DE DATOS: PILA DE INDENTACIÓN --- */
 #define MAX_DEPTH 100
-int indent_stack[MAX_DEPTH] = {0}; // Inicializamos con indentación 0
+int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
 
 %}
@@ -78,16 +83,13 @@ HEX             [0-9a-fA-F]
 \n[ \t]*|\r\n[ \t]* { 
     printf("\n<NEWLINE>\n"); 
     
-    // Contar el nivel de indentación actual
     int current_indent = 0;
     for(int i = 0; yytext[i] != '\0'; i++) {
         if(yytext[i] == ' ') current_indent++;
-        else if(yytext[i] == '\t') current_indent = (current_indent + 8) & ~7; // Tab normalizado a 8 espacios
+        else if(yytext[i] == '\t') current_indent = (current_indent + 8) & ~7;
     }
 
-    // Lógica de Stack
     if (current_indent > indent_stack[top]) {
-        // Aumentó la indentación
         if (top < MAX_DEPTH - 1) {
             indent_stack[++top] = current_indent;
             printf("<INDENT> ");
@@ -95,12 +97,10 @@ HEX             [0-9a-fA-F]
             printf("[ERROR: Nivel de indentación máximo superado]");
         }
     } else if (current_indent < indent_stack[top]) {
-        // Disminuyó la indentación (puede requerir múltiples DEDENT)
         while (top > 0 && indent_stack[top] > current_indent) {
             top--;
             printf("<DEDENT> ");
         }
-        // Validar que la indentación coincida con un nivel previo
         if (indent_stack[top] != current_indent) {
             printf("[ERROR: Indentación inconsistente] ");
         }
@@ -136,15 +136,21 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { printf("<TL_IDENTIFIER: %s>", yytext); }
     /* 3) IDENTIFICADORES */
 {LETTER}({LETTER}|{DIGIT})* { 
     printf("<IDENTIFIER: %s>", yytext); 
-    insert_identifier(yytext); 
+    insert_into_table(idTable, yytext, "Tabla_ID"); 
 }
 
-    /* 5) LITERALES */
-0|[1-9]{DIGIT}*|0[xX]{HEX}+                                     { printf("<INT_LITERAL: %s>", yytext); }
-({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+   { printf("<FLOAT_LITERAL: %s>", yytext); }
-\"([^"\\\n]|\\.)*\"|\'([^'\\\n]|\\.)*\'                         { printf("<STRING_LITERAL>"); }
+    /* 5) LITERALES NUMÉRICOS (A la nueva tabla) Y DE TEXTO */
+0|[1-9]{DIGIT}*|0[xX]{HEX}+ { 
+    printf("<INT_LITERAL: %s>", yytext); 
+    insert_into_table(literalTable, yytext, "Tabla_Num");
+}
+({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+ { 
+    printf("<FLOAT_LITERAL: %s>", yytext); 
+    insert_into_table(literalTable, yytext, "Tabla_Num");
+}
+\"([^"\\\n]|\\.)*\"|\'([^'\\\n]|\\.)*\' { printf("<STRING_LITERAL>"); }
 
-    /* 7) OPERADORES DE ASIGNACIÓN (Reducido a "=") */
+    /* 7) OPERADORES DE ASIGNACIÓN */
 "="             { printf("<OP_ASSIGN>"); }
 
     /* 6) OPERADORES ARITMÉTICOS */
@@ -187,12 +193,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { printf("<TL_IDENTIFIER: %s>", yytext); }
 
     /* 12) FIN DE ARCHIVO */
 <<EOF>>         { 
-                    // Limpiar la pila de indentación generando los DEDENT faltantes
                     while(top > 0) {
                         printf("\n<DEDENT> (EOF)");
                         top--;
                     }
-                    print_hash_map();
+                    print_table(idTable, "TABLA DE IDENTIFICADORES");
+                    print_table(literalTable, "TABLA DE LITERALES NUMERICOS");
                     return 0; 
                 }
 

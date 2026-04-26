@@ -550,14 +550,17 @@ char *yytext;
 
 #define HASH_SIZE 256
 
-/* --- ESTRUCTURA DE DATOS: HASH MAP CON CHAINING --- */
+/* --- ESTRUCTURA DE DATOS: HASH MAP GENÉRICO --- */
 typedef struct HashNode {
-    char* name;
+    char* value;
     struct HashNode* next;
 } HashNode;
 
-HashNode* hashTable[HASH_SIZE] = {NULL};
+/* Dos tablas Hash independientes */
+HashNode* idTable[HASH_SIZE] = {NULL};
+HashNode* literalTable[HASH_SIZE] = {NULL};
 
+/* Función Hash (djb2) */
 unsigned int hash(const char* str) {
     unsigned long hash_val = 5381;
     int c;
@@ -567,33 +570,35 @@ unsigned int hash(const char* str) {
     return hash_val % HASH_SIZE;
 }
 
-void insert_identifier(const char* name) {
-    unsigned int index = hash(name);
-    HashNode* curr = hashTable[index];
+/* Función genérica para insertar en una tabla específica */
+void insert_into_table(HashNode** table, const char* value, const char* table_name) {
+    unsigned int index = hash(value);
+    HashNode* curr = table[index];
     
     while(curr != NULL) {
-        if(strcmp(curr->name, name) == 0) return; 
+        if(strcmp(curr->value, value) == 0) return; // Evitar duplicados
         curr = curr->next;
     }
     
     HashNode* new_node = (HashNode*)malloc(sizeof(HashNode));
-    new_node->name = strdup(name);
-    new_node->next = hashTable[index];
-    hashTable[index] = new_node;
+    new_node->value = strdup(value);
+    new_node->next = table[index];
+    table[index] = new_node;
     
-    printf(" [Registrado en Hash Map: %s] ", name);
+    printf(" [Registrado en %s (Bucket %d): %s] ", table_name, index, value);
 }
 
-void print_hash_map() {
-    printf("\n\n--- TABLA DE SÍMBOLOS (HASH MAP) ---\n");
+/* Función genérica para imprimir una tabla */
+void print_table(HashNode** table, const char* title) {
+    printf("\n\n--- %s ---\n", title);
     int empty = 1;
     for(int i = 0; i < HASH_SIZE; i++) {
-        if(hashTable[i] != NULL) {
+        if(table[i] != NULL) {
             empty = 0;
             printf("Bucket %03d: ", i);
-            HashNode* curr = hashTable[i];
+            HashNode* curr = table[i];
             while(curr != NULL) {
-                printf("[%s] -> ", curr->name);
+                printf("[%s] -> ", curr->value);
                 curr = curr->next;
             }
             printf("NULL\n");
@@ -604,11 +609,11 @@ void print_hash_map() {
 
 /* --- ESTRUCTURA DE DATOS: PILA DE INDENTACIÓN --- */
 #define MAX_DEPTH 100
-int indent_stack[MAX_DEPTH] = {0}; // Inicializamos con indentación 0
+int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
 
-#line 610 "lex.yy.c"
-#line 611 "lex.yy.c"
+#line 615 "lex.yy.c"
+#line 616 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -825,12 +830,12 @@ YY_DECL
 		}
 
 	{
-#line 73 "triton.l"
+#line 78 "triton.l"
 
 
-#line 76 "triton.l"
+#line 81 "triton.l"
     /* 1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN (CON PILA) */
-#line 833 "lex.yy.c"
+#line 838 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -889,26 +894,23 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 77 "triton.l"
+#line 82 "triton.l"
 { /* Ignorar espacios en medio de la línea */ }
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 79 "triton.l"
+#line 84 "triton.l"
 { 
     printf("\n<NEWLINE>\n"); 
     
-    // Contar el nivel de indentación actual
     int current_indent = 0;
     for(int i = 0; yytext[i] != '\0'; i++) {
         if(yytext[i] == ' ') current_indent++;
-        else if(yytext[i] == '\t') current_indent = (current_indent + 8) & ~7; // Tab normalizado a 8 espacios
+        else if(yytext[i] == '\t') current_indent = (current_indent + 8) & ~7;
     }
 
-    // Lógica de Stack
     if (current_indent > indent_stack[top]) {
-        // Aumentó la indentación
         if (top < MAX_DEPTH - 1) {
             indent_stack[++top] = current_indent;
             printf("<INDENT> ");
@@ -916,12 +918,10 @@ YY_RULE_SETUP
             printf("[ERROR: Nivel de indentación máximo superado]");
         }
     } else if (current_indent < indent_stack[top]) {
-        // Disminuyó la indentación (puede requerir múltiples DEDENT)
         while (top > 0 && indent_stack[top] > current_indent) {
             top--;
             printf("<DEDENT> ");
         }
-        // Validar que la indentación coincida con un nivel previo
         if (indent_stack[top] != current_indent) {
             printf("[ERROR: Indentación inconsistente] ");
         }
@@ -1037,209 +1037,215 @@ YY_RULE_SETUP
 #line 138 "triton.l"
 { 
     printf("<IDENTIFIER: %s>", yytext); 
-    insert_identifier(yytext); 
+    insert_into_table(idTable, yytext, "Tabla_ID"); 
 }
 	YY_BREAK
-/* 5) LITERALES */
+/* 5) LITERALES NUMÉRICOS (A la nueva tabla) Y DE TEXTO */
 case 24:
 YY_RULE_SETUP
 #line 144 "triton.l"
-{ printf("<INT_LITERAL: %s>", yytext); }
+{ 
+    printf("<INT_LITERAL: %s>", yytext); 
+    insert_into_table(literalTable, yytext, "Tabla_Num");
+}
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 145 "triton.l"
-{ printf("<FLOAT_LITERAL: %s>", yytext); }
+#line 148 "triton.l"
+{ 
+    printf("<FLOAT_LITERAL: %s>", yytext); 
+    insert_into_table(literalTable, yytext, "Tabla_Num");
+}
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 146 "triton.l"
+#line 152 "triton.l"
 { printf("<STRING_LITERAL>"); }
 	YY_BREAK
-/* 7) OPERADORES DE ASIGNACIÓN (Reducido a "=") */
+/* 7) OPERADORES DE ASIGNACIÓN */
 case 27:
 YY_RULE_SETUP
-#line 149 "triton.l"
+#line 155 "triton.l"
 { printf("<OP_ASSIGN>"); }
 	YY_BREAK
 /* 6) OPERADORES ARITMÉTICOS */
 case 28:
 YY_RULE_SETUP
-#line 152 "triton.l"
+#line 158 "triton.l"
 { printf("<OP_DOUBLE_SLASH>"); }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 153 "triton.l"
+#line 159 "triton.l"
 { printf("<OP_PLUS>"); }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 154 "triton.l"
+#line 160 "triton.l"
 { printf("<OP_MINUS>"); }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 155 "triton.l"
+#line 161 "triton.l"
 { printf("<OP_STAR>"); }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 156 "triton.l"
+#line 162 "triton.l"
 { printf("<OP_SLASH>"); }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 157 "triton.l"
+#line 163 "triton.l"
 { printf("<OP_MOD>"); }
 	YY_BREAK
 /* 8) OPERADORES RELACIONALES */
 case 34:
 YY_RULE_SETUP
-#line 160 "triton.l"
+#line 166 "triton.l"
 { printf("<OP_LE>"); }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 161 "triton.l"
+#line 167 "triton.l"
 { printf("<OP_GE>"); }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 162 "triton.l"
+#line 168 "triton.l"
 { printf("<OP_EQ>"); }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 163 "triton.l"
+#line 169 "triton.l"
 { printf("<OP_NEQ>"); }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 164 "triton.l"
+#line 170 "triton.l"
 { printf("<OP_LT>"); }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 165 "triton.l"
+#line 171 "triton.l"
 { printf("<OP_GT>"); }
 	YY_BREAK
 /* 9) OPERADORES BIT A BIT */
 case 40:
 YY_RULE_SETUP
-#line 168 "triton.l"
+#line 174 "triton.l"
 { printf("<OP_LSHIFT>"); }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 169 "triton.l"
+#line 175 "triton.l"
 { printf("<OP_RSHIFT>"); }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 170 "triton.l"
+#line 176 "triton.l"
 { printf("<OP_BIT_AND>"); }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 171 "triton.l"
+#line 177 "triton.l"
 { printf("<OP_BIT_OR>"); }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 172 "triton.l"
+#line 178 "triton.l"
 { printf("<OP_BIT_XOR>"); }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 173 "triton.l"
+#line 179 "triton.l"
 { printf("<OP_BIT_NOT>"); }
 	YY_BREAK
 /* 10) DELIMITADORES */
 case 46:
 YY_RULE_SETUP
-#line 176 "triton.l"
+#line 182 "triton.l"
 { printf("<ARROW>"); }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 177 "triton.l"
+#line 183 "triton.l"
 { printf("<LPAREN>"); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 178 "triton.l"
+#line 184 "triton.l"
 { printf("<RPAREN>"); }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 179 "triton.l"
+#line 185 "triton.l"
 { printf("<LBRACKET>"); }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 180 "triton.l"
+#line 186 "triton.l"
 { printf("<RBRACKET>"); }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 181 "triton.l"
+#line 187 "triton.l"
 { printf("<LBRACE>"); }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 182 "triton.l"
+#line 188 "triton.l"
 { printf("<RBRACE>"); }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 183 "triton.l"
+#line 189 "triton.l"
 { printf("<COMMA>"); }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 184 "triton.l"
+#line 190 "triton.l"
 { printf("<COLON>"); }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 185 "triton.l"
+#line 191 "triton.l"
 { printf("<DOT>"); }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 186 "triton.l"
+#line 192 "triton.l"
 { printf("<SEMICOLON>"); }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 187 "triton.l"
+#line 193 "triton.l"
 { printf("<AT>"); }
 	YY_BREAK
 /* 12) FIN DE ARCHIVO */
 case YY_STATE_EOF(INITIAL):
-#line 190 "triton.l"
+#line 196 "triton.l"
 { 
-                    // Limpiar la pila de indentación generando los DEDENT faltantes
                     while(top > 0) {
                         printf("\n<DEDENT> (EOF)");
                         top--;
                     }
-                    print_hash_map();
+                    print_table(idTable, "TABLA DE IDENTIFICADORES");
+                    print_table(literalTable, "TABLA DE LITERALES NUMERICOS");
                     return 0; 
                 }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 200 "triton.l"
+#line 206 "triton.l"
 { printf("[ERROR LEXICO: %s]", yytext); }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 202 "triton.l"
+#line 208 "triton.l"
 ECHO;
 	YY_BREAK
-#line 1242 "lex.yy.c"
+#line 1248 "lex.yy.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2242,7 +2248,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 202 "triton.l"
+#line 208 "triton.l"
 
 
 int yywrap() { return 1; }
