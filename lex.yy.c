@@ -583,26 +583,26 @@ void insert_into_table(HashNode** table, const char* value, const char* table_na
     new_node->value = strdup(value);
     new_node->next = table[index];
     table[index] = new_node;
-    
-    printf(" [Registrado en %s: %s] ", table_name, value);
 }
 
 void print_table(HashNode** table, const char* title) {
     printf("\n--- %s ---\n", title);
     int empty = 1;
+    
     for(int i = 0; i < HASH_SIZE; i++) {
-        if(table[i] != NULL) {
+        HashNode* curr = table[i];
+        
+        while(curr != NULL) {
             empty = 0;
-            printf("Bucket %03d: ", i);
-            HashNode* curr = table[i];
-            while(curr != NULL) {
-                printf("[%s] -> ", curr->value);
-                curr = curr->next;
-            }
-            printf("NULL\n");
+            // Imprime solo la llave (value) en una nueva línea
+            printf("%s\n", curr->value); 
+            curr = curr->next;
         }
     }
-    if (empty) printf("La tabla está vacía.\n");
+    
+    if (empty) {
+        printf("La tabla está vacía.\n");
+    }
 }
 
 /* =========================================================================
@@ -641,19 +641,6 @@ void add_token(const char* token_name, const char* lexeme) {
         scanner_head = new_node; // Si la lista estaba vacía
     }
     scanner_tail = new_node;
-
-    // 2. Imprimir en pantalla para feedback visual
-    if (strcmp(token_name, "NEWLINE") == 0) {
-        printf("\n<NEWLINE>\n");
-    } else if (strcmp(token_name, "INDENT") == 0 || strcmp(token_name, "DEDENT") == 0) {
-        printf("<%s> ", token_name);
-    } else if (strcmp(token_name, "IDENTIFIER") == 0 || 
-               strstr(token_name, "LITERAL") != NULL || 
-               strcmp(token_name, "TL_IDENTIFIER") == 0) {
-        printf("<%s: %s> ", token_name, lexeme);
-    } else {
-        printf("<%s> ", token_name);
-    }
 }
 
 /* Función para imprimir el contenido de la Double Linked List al final */
@@ -670,8 +657,8 @@ void print_scanner_output() {
         curr = curr->next;
     }
 }
-#line 673 "lex.yy.c"
-#line 674 "lex.yy.c"
+#line 660 "lex.yy.c"
+#line 661 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -888,12 +875,12 @@ YY_DECL
 		}
 
 	{
-#line 136 "triton.l"
+#line 123 "triton.l"
 
 
-#line 139 "triton.l"
+#line 126 "triton.l"
     /* 1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN */
-#line 896 "lex.yy.c"
+#line 883 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -952,13 +939,13 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 140 "triton.l"
+#line 127 "triton.l"
 { /* Ignorar espacios en medio de la línea */ }
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 142 "triton.l"
+#line 129 "triton.l"
 { 
     add_token("NEWLINE", ""); 
     
@@ -989,110 +976,110 @@ YY_RULE_SETUP
 /* 2) COMENTARIOS */
 case 3:
 YY_RULE_SETUP
-#line 170 "triton.l"
+#line 157 "triton.l"
 { add_token("COMMENT", yytext); }
 	YY_BREAK
 /* 4) PALABRAS RESERVADAS */
 case 4:
 YY_RULE_SETUP
-#line 173 "triton.l"
+#line 160 "triton.l"
 { add_token("KW_DEF", yytext); }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 174 "triton.l"
+#line 161 "triton.l"
 { add_token("KW_IF", yytext); }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 175 "triton.l"
+#line 162 "triton.l"
 { add_token("KW_ELIF", yytext); }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 176 "triton.l"
+#line 163 "triton.l"
 { add_token("KW_ELSE", yytext); }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 177 "triton.l"
+#line 164 "triton.l"
 { add_token("KW_FOR", yytext); }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 178 "triton.l"
+#line 165 "triton.l"
 { add_token("KW_WHILE", yytext); }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 179 "triton.l"
+#line 166 "triton.l"
 { add_token("KW_IN", yytext); }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 180 "triton.l"
+#line 167 "triton.l"
 { add_token("KW_BREAK", yytext); }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 181 "triton.l"
+#line 168 "triton.l"
 { add_token("KW_CONTINUE", yytext); }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 182 "triton.l"
+#line 169 "triton.l"
 { add_token("KW_RETURN", yytext); }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 183 "triton.l"
+#line 170 "triton.l"
 { add_token("KW_PASS", yytext); }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 184 "triton.l"
+#line 171 "triton.l"
 { add_token("KW_AND", yytext); }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 185 "triton.l"
+#line 172 "triton.l"
 { add_token("KW_OR", yytext); }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 186 "triton.l"
+#line 173 "triton.l"
 { add_token("KW_NOT", yytext); }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 187 "triton.l"
+#line 174 "triton.l"
 { add_token("KW_IS", yytext); }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 188 "triton.l"
+#line 175 "triton.l"
 { add_token("KW_TRUE", yytext); }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 189 "triton.l"
+#line 176 "triton.l"
 { add_token("KW_FALSE", yytext); }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 190 "triton.l"
+#line 177 "triton.l"
 { add_token("KW_NONE", yytext); }
 	YY_BREAK
 /* 11) TOKENS TRITON */
 case 22:
 YY_RULE_SETUP
-#line 193 "triton.l"
+#line 180 "triton.l"
 { add_token("TL_IDENTIFIER", yytext); }
 	YY_BREAK
 /* 3) IDENTIFICADORES */
 case 23:
 YY_RULE_SETUP
-#line 196 "triton.l"
+#line 183 "triton.l"
 { 
     add_token("IDENTIFIER", yytext); 
     insert_into_table(idTable, yytext, "Tabla_ID"); 
@@ -1101,7 +1088,7 @@ YY_RULE_SETUP
 /* 5) LITERALES NUMÉRICOS Y DE TEXTO */
 case 24:
 YY_RULE_SETUP
-#line 202 "triton.l"
+#line 189 "triton.l"
 { 
     add_token("INT_LITERAL", yytext); 
     insert_into_table(literalTable, yytext, "Tabla_Num");
@@ -1109,7 +1096,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 206 "triton.l"
+#line 193 "triton.l"
 { 
     add_token("FLOAT_LITERAL", yytext); 
     insert_into_table(literalTable, yytext, "Tabla_Num");
@@ -1117,172 +1104,172 @@ YY_RULE_SETUP
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 210 "triton.l"
+#line 197 "triton.l"
 { add_token("STRING_LITERAL", yytext); }
 	YY_BREAK
 /* 7) OPERADORES DE ASIGNACIÓN */
 case 27:
 YY_RULE_SETUP
-#line 213 "triton.l"
+#line 200 "triton.l"
 { add_token("OP_ASSIGN", yytext); }
 	YY_BREAK
 /* 6) OPERADORES ARITMÉTICOS */
 case 28:
 YY_RULE_SETUP
-#line 216 "triton.l"
+#line 203 "triton.l"
 { add_token("OP_DOUBLE_SLASH", yytext); }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 217 "triton.l"
+#line 204 "triton.l"
 { add_token("OP_PLUS", yytext); }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 218 "triton.l"
+#line 205 "triton.l"
 { add_token("OP_MINUS", yytext); }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 219 "triton.l"
+#line 206 "triton.l"
 { add_token("OP_STAR", yytext); }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 220 "triton.l"
+#line 207 "triton.l"
 { add_token("OP_SLASH", yytext); }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 221 "triton.l"
+#line 208 "triton.l"
 { add_token("OP_MOD", yytext); }
 	YY_BREAK
 /* 8) OPERADORES RELACIONALES */
 case 34:
 YY_RULE_SETUP
-#line 224 "triton.l"
+#line 211 "triton.l"
 { add_token("OP_LE", yytext); }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 225 "triton.l"
+#line 212 "triton.l"
 { add_token("OP_GE", yytext); }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 226 "triton.l"
+#line 213 "triton.l"
 { add_token("OP_EQ", yytext); }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 227 "triton.l"
+#line 214 "triton.l"
 { add_token("OP_NEQ", yytext); }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 228 "triton.l"
+#line 215 "triton.l"
 { add_token("OP_LT", yytext); }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 229 "triton.l"
+#line 216 "triton.l"
 { add_token("OP_GT", yytext); }
 	YY_BREAK
 /* 9) OPERADORES BIT A BIT */
 case 40:
 YY_RULE_SETUP
-#line 232 "triton.l"
+#line 219 "triton.l"
 { add_token("OP_LSHIFT", yytext); }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 233 "triton.l"
+#line 220 "triton.l"
 { add_token("OP_RSHIFT", yytext); }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 234 "triton.l"
+#line 221 "triton.l"
 { add_token("OP_BIT_AND", yytext); }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 235 "triton.l"
+#line 222 "triton.l"
 { add_token("OP_BIT_OR", yytext); }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 236 "triton.l"
+#line 223 "triton.l"
 { add_token("OP_BIT_XOR", yytext); }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 237 "triton.l"
+#line 224 "triton.l"
 { add_token("OP_BIT_NOT", yytext); }
 	YY_BREAK
 /* 10) DELIMITADORES */
 case 46:
 YY_RULE_SETUP
-#line 240 "triton.l"
+#line 227 "triton.l"
 { add_token("ARROW", yytext); }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 241 "triton.l"
+#line 228 "triton.l"
 { add_token("LPAREN", yytext); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 242 "triton.l"
+#line 229 "triton.l"
 { add_token("RPAREN", yytext); }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 243 "triton.l"
+#line 230 "triton.l"
 { add_token("LBRACKET", yytext); }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 244 "triton.l"
+#line 231 "triton.l"
 { add_token("RBRACKET", yytext); }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 245 "triton.l"
+#line 232 "triton.l"
 { add_token("LBRACE", yytext); }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 246 "triton.l"
+#line 233 "triton.l"
 { add_token("RBRACE", yytext); }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 247 "triton.l"
+#line 234 "triton.l"
 { add_token("COMMA", yytext); }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 248 "triton.l"
+#line 235 "triton.l"
 { add_token("COLON", yytext); }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 249 "triton.l"
+#line 236 "triton.l"
 { add_token("DOT", yytext); }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 250 "triton.l"
+#line 237 "triton.l"
 { add_token("SEMICOLON", yytext); }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 251 "triton.l"
+#line 238 "triton.l"
 { add_token("AT", yytext); }
 	YY_BREAK
 /* 12) FIN DE ARCHIVO */
 case YY_STATE_EOF(INITIAL):
-#line 254 "triton.l"
+#line 241 "triton.l"
 { 
                     while(top > 0) {
                         add_token("DEDENT", "");
@@ -1298,15 +1285,15 @@ case YY_STATE_EOF(INITIAL):
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 267 "triton.l"
+#line 254 "triton.l"
 { printf("[ERROR LEXICO: %s]", yytext); }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 269 "triton.l"
+#line 256 "triton.l"
 ECHO;
 	YY_BREAK
-#line 1309 "lex.yy.c"
+#line 1296 "lex.yy.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2309,7 +2296,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 269 "triton.l"
+#line 256 "triton.l"
 
 
 int yywrap() { return 1; }

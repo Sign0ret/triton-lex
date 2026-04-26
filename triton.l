@@ -38,26 +38,26 @@ void insert_into_table(HashNode** table, const char* value, const char* table_na
     new_node->value = strdup(value);
     new_node->next = table[index];
     table[index] = new_node;
-    
-    printf(" [Registrado en %s: %s] ", table_name, value);
 }
 
 void print_table(HashNode** table, const char* title) {
     printf("\n--- %s ---\n", title);
     int empty = 1;
+    
     for(int i = 0; i < HASH_SIZE; i++) {
-        if(table[i] != NULL) {
+        HashNode* curr = table[i];
+        
+        while(curr != NULL) {
             empty = 0;
-            printf("Bucket %03d: ", i);
-            HashNode* curr = table[i];
-            while(curr != NULL) {
-                printf("[%s] -> ", curr->value);
-                curr = curr->next;
-            }
-            printf("NULL\n");
+            // Imprime solo la llave (value) en una nueva línea
+            printf("%s\n", curr->value); 
+            curr = curr->next;
         }
     }
-    if (empty) printf("La tabla está vacía.\n");
+    
+    if (empty) {
+        printf("La tabla está vacía.\n");
+    }
 }
 
 /* =========================================================================
@@ -96,19 +96,6 @@ void add_token(const char* token_name, const char* lexeme) {
         scanner_head = new_node; // Si la lista estaba vacía
     }
     scanner_tail = new_node;
-
-    // 2. Imprimir en pantalla para feedback visual
-    if (strcmp(token_name, "NEWLINE") == 0) {
-        printf("\n<NEWLINE>\n");
-    } else if (strcmp(token_name, "INDENT") == 0 || strcmp(token_name, "DEDENT") == 0) {
-        printf("<%s> ", token_name);
-    } else if (strcmp(token_name, "IDENTIFIER") == 0 || 
-               strstr(token_name, "LITERAL") != NULL || 
-               strcmp(token_name, "TL_IDENTIFIER") == 0) {
-        printf("<%s: %s> ", token_name, lexeme);
-    } else {
-        printf("<%s> ", token_name);
-    }
 }
 
 /* Función para imprimir el contenido de la Double Linked List al final */
