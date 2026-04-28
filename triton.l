@@ -422,10 +422,6 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
 \"\"\"([^"\\]|\\.|\"[^"]|\"\"[^"])*\"\"\" { add_token("STRING_LITERAL", yytext); }
 \'\'\'([^'\\]|\\.|\\'[^']|\'\'[^'])*\'\'\' { add_token("STRING_LITERAL", yytext); }
 
-    /* f-strings: f"..."  y  f'...' */
-[fF]\"([^"\\\n]|\\.)*\" { add_token("STRING_LITERAL", yytext); }
-[fF]\'([^'\\\n]|\\.)*\' { add_token("STRING_LITERAL", yytext); }
-
     /* Strings simples válidas */
 \"([^"\\\n]|\\.)*\" { add_token("STRING_LITERAL", yytext); }
 \'([^'\\\n]|\\.)*\' { add_token("STRING_LITERAL", yytext); }
@@ -450,19 +446,17 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
 
     /* ===================================================================
        9) OPERADORES COMPUESTOS (deben ir ANTES que los simples)
+
+       Solo los relevantes para Triton DSL:
+         += y -= para acumuladores
+         *= y /= para escalado de valores
+       Los bitwise-assign, //=, %=, <<=, >>= no aparecen en kernels GPU.
        =================================================================== */
 
 "+="            { add_token("OP_PLUS_ASSIGN", yytext); }
 "-="            { add_token("OP_MINUS_ASSIGN", yytext); }
 "*="            { add_token("OP_STAR_ASSIGN", yytext); }
 "/="            { add_token("OP_SLASH_ASSIGN", yytext); }
-"//="           { add_token("OP_DOUBLE_SLASH_ASSIGN", yytext); }
-"%="            { add_token("OP_MOD_ASSIGN", yytext); }
-"&="            { add_token("OP_BIT_AND_ASSIGN", yytext); }
-"|="            { add_token("OP_BIT_OR_ASSIGN", yytext); }
-"^="            { add_token("OP_BIT_XOR_ASSIGN", yytext); }
-"<<="           { add_token("OP_LSHIFT_ASSIGN", yytext); }
-">>="           { add_token("OP_RSHIFT_ASSIGN", yytext); }
 
     /* ===================================================================
        10) OPERADOR DE ASIGNACIÓN SIMPLE
