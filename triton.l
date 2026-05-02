@@ -488,7 +488,7 @@ OCTAL           [0-7]
     /* Strings sin cerrar: llegan al fin de línea sin comilla de cierre */
 \"([^"\\\n]|\\.)*\n {
     fprintf(stderr,
-        "[ERROR LEXICO] String sin cerrar (comilla doble)\n"
+        "[ERROR LEXICO] String sin cerrar \n"
         "  Línea: %d\n"
         "  Sugerencia: agrega '\"' al final de la cadena\n",
         yylineno - 1);
@@ -502,7 +502,7 @@ OCTAL           [0-7]
 }
 \'([^'\\\n]|\\.)*\n {
     fprintf(stderr,
-        "[ERROR LEXICO] String sin cerrar (comilla simple)\n"
+        "[ERROR LEXICO] String sin cerrar\n"
         "  Línea: %d\n"
         "  Sugerencia: agrega \"'\" al final de la cadena\n",
         yylineno - 1);

@@ -1578,7 +1578,7 @@ YY_RULE_SETUP
 #line 490 "triton.l"
 {
     fprintf(stderr,
-        "[ERROR LEXICO] String sin cerrar (comilla doble)\n"
+        "[ERROR LEXICO] String sin cerrar \n"
         "  Línea: %d\n"
         "  Sugerencia: agrega '\"' al final de la cadena\n",
         yylineno - 1);
@@ -1597,7 +1597,7 @@ YY_RULE_SETUP
 #line 504 "triton.l"
 {
     fprintf(stderr,
-        "[ERROR LEXICO] String sin cerrar (comilla simple)\n"
+        "[ERROR LEXICO] String sin cerrar\n"
         "  Línea: %d\n"
         "  Sugerencia: agrega \"'\" al final de la cadena\n",
         yylineno - 1);
