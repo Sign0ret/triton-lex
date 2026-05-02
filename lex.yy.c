@@ -700,9 +700,7 @@ char *yytext;
 // CONFIGURACIÓN DEL LEXER
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define HASH_SIZE 256
 #define MAX_DEPTH 100
-#define STRING_BUFFER_SIZE 1024
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ESTADÍSTICAS DEL ANÁLISIS LÉXICO
@@ -726,79 +724,135 @@ LexerStats stats = {0};
 //   strTable → literales de texto (strings)
 // ═══════════════════════════════════════════════════════════════════════════
 
-typedef struct HashNode {
-    char* value;
-    struct HashNode* next;
-} HashNode;
+// ═══════════════════════════════════════════════════════════════════════════
+// SYMBOL TABLES (Linked Lists)
+// ═══════════════════════════════════════════════════════════════════════════
 
-HashNode* idTable[HASH_SIZE]  = {NULL};
-HashNode* numTable[HASH_SIZE] = {NULL};
-HashNode* strTable[HASH_SIZE] = {NULL};
+typedef struct IDNode {
+    int entry;
+    char* lexeme;
+    struct IDNode* next;
+} IDNode;
 
-unsigned int hash(const char* str) {
-    unsigned long hash_val = 5381;
-    int c;
-    while ((c = *str++)) {
-        hash_val = ((hash_val << 5) + hash_val) + c;
-    }
-    return hash_val % HASH_SIZE;
-}
+typedef struct NumNode {
+    int entry;
+    char* lexeme;
+    char* type;        // "int" or "float", detected at scan time
+    struct NumNode* next;
+} NumNode;
 
-void insert_into_table(HashNode** table, const char* value) {
-    unsigned int index = hash(value);
-    HashNode* curr = table[index];
+typedef struct StrNode {
+    int entry;
+    char* lexeme;
+    struct StrNode* next;
+} StrNode;
 
-    while(curr != NULL) {
-        if(strcmp(curr->value, value) == 0) return;
+IDNode*  id_head  = NULL;
+NumNode* num_head = NULL;
+StrNode* str_head = NULL;
+
+int id_counter  = 0;
+int num_counter = 0;
+int str_counter = 0;
+
+// Returns entry number (existing or new)
+int insert_id(const char* lexeme) {
+    IDNode* curr = id_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
         curr = curr->next;
     }
 
-    HashNode* new_node = (HashNode*)malloc(sizeof(HashNode));
-    if (!new_node) {
-        fprintf(stderr, "[ERROR] No hay memoria para HashNode. Abortando.\n");
-        exit(EXIT_FAILURE);
-    }
+    IDNode* node = (IDNode*)malloc(sizeof(IDNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para IDNode.\n"); exit(EXIT_FAILURE); }
 
-    new_node->value = strdup(value);
-    if (!new_node->value) {
-        fprintf(stderr, "[ERROR] No hay memoria para strdup('%s'). Abortando.\n", value);
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
-
-    new_node->next = table[index];
-    table[index] = new_node;
+    node->entry  = id_counter++;
+    node->lexeme = strdup(lexeme);
+    node->next   = id_head;
+    id_head      = node;
+    return node->entry;
 }
 
-void print_table(HashNode** table, const char* title) {
-    printf("\n--- %s ---\n", title);
-    int empty = 1;
-
-    for(int i = 0; i < HASH_SIZE; i++) {
-        HashNode* curr = table[i];
-        while(curr != NULL) {
-            empty = 0;
-            printf("%s\n", curr->value);
-            curr = curr->next;
-        }
+// Returns entry number (existing or new)
+int insert_num(const char* lexeme, const char* type) {
+    NumNode* curr = num_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        curr = curr->next;
     }
 
-    if (empty) {
-        printf("La tabla está vacía.\n");
-    }
+    NumNode* node = (NumNode*)malloc(sizeof(NumNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para NumNode.\n"); exit(EXIT_FAILURE); }
+
+    node->entry  = num_counter++;
+    node->lexeme = strdup(lexeme);
+    node->type   = strdup(type);
+    node->next   = num_head;
+    num_head     = node;
+    return node->entry;
 }
 
-void free_hash_table(HashNode** table) {
-    for (int i = 0; i < HASH_SIZE; i++) {
-        HashNode* curr = table[i];
-        while (curr != NULL) {
-            HashNode* next = curr->next;
-            free(curr->value);
-            free(curr);
-            curr = next;
-        }
-        table[i] = NULL;
+// Returns entry number (existing or new)
+int insert_str(const char* lexeme) {
+    StrNode* curr = str_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        curr = curr->next;
     }
+
+    StrNode* node = (StrNode*)malloc(sizeof(StrNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para StrNode.\n"); exit(EXIT_FAILURE); }
+
+    node->entry  = str_counter++;
+    node->lexeme = strdup(lexeme);
+    node->next   = str_head;
+    str_head     = node;
+    return node->entry;
+}
+
+void print_id_table() {
+    printf("\n--- Symbol Table: Identifiers ---\n");
+    printf("%-8s %-20s\n", "Entry #", "Lexeme");
+    if (!id_head) { printf("La tabla está vacía.\n"); return; }
+    // Collect into array for ordered printing
+    IDNode* arr[id_counter];
+    IDNode* curr = id_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < id_counter; i++)
+        printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+}
+
+void print_num_table() {
+    printf("\n--- Symbol Table: Numbers ---\n");
+    printf("%-8s %-20s %-10s\n", "Entry #", "Lexeme", "Type");
+    if (!num_head) { printf("La tabla está vacía.\n"); return; }
+    NumNode* arr[num_counter];
+    NumNode* curr = num_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < num_counter; i++)
+        printf("%-8d %-20s %-10s\n", arr[i]->entry, arr[i]->lexeme, arr[i]->type);
+}
+
+void print_str_table() {
+    printf("\n--- Symbol Table: Strings ---\n");
+    printf("%-8s %-20s\n", "Entry #", "Lexeme");
+    if (!str_head) { printf("La tabla está vacía.\n"); return; }
+    StrNode* arr[str_counter];
+    StrNode* curr = str_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < str_counter; i++)
+        printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+}
+
+void free_symbol_tables() {
+    IDNode* ic = id_head;
+    while (ic) { IDNode* n = ic->next; free(ic->lexeme); free(ic); ic = n; }
+
+    NumNode* nc = num_head;
+    while (nc) { NumNode* n = nc->next; free(nc->lexeme); free(nc->type); free(nc); nc = n; }
+
+    StrNode* sc = str_head;
+    while (sc) { StrNode* n = sc->next; free(sc->lexeme); free(sc); sc = n; }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -824,73 +878,50 @@ int paren_depth = 0;
 
 typedef struct TokenNode {
     char* token_name;
-    char* lexeme;
-    size_t lexeme_len;
-    int line_num;
+    int   entry;       // -1 if not referencing a symbol table
+    int   line_num;
     struct TokenNode* next;
 } TokenNode;
 
 TokenNode* scanner_head = NULL;
 TokenNode* scanner_tail = NULL;
 
-void add_token(const char* token_name, const char* lexeme) {
-    TokenNode* new_node = (TokenNode*)malloc(sizeof(TokenNode));
-    if (!new_node) {
-        fprintf(stderr, "[ERROR] No hay memoria para TokenNode. Abortando.\n");
-        exit(EXIT_FAILURE);
-    }
+void add_token(const char* token_name, int entry) {
+    TokenNode* node = (TokenNode*)malloc(sizeof(TokenNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para TokenNode.\n"); exit(EXIT_FAILURE); }
 
-    new_node->token_name = strdup(token_name);
-    if (!new_node->token_name) {
-        fprintf(stderr, "[ERROR] No hay memoria para token_name. Abortando.\n");
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
+    node->token_name = strdup(token_name);
+    node->entry      = entry;
+    node->line_num   = yylineno;
+    node->next       = NULL;
 
-    new_node->lexeme = strdup(lexeme);
-    if (!new_node->lexeme) {
-        fprintf(stderr, "[ERROR] No hay memoria para lexeme. Abortando.\n");
-        free(new_node->token_name);
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
-
-    new_node->lexeme_len = strlen(lexeme);
-    new_node->line_num = yylineno;
-    new_node->next = NULL;
-
-    if (scanner_tail != NULL) {
-        scanner_tail->next = new_node;
-    } else {
-        scanner_head = new_node;
-    }
-    scanner_tail = new_node;
+    if (scanner_tail) scanner_tail->next = node;
+    else              scanner_head = node;
+    scanner_tail = node;
 
     stats.total_tokens++;
-    if (strcmp(token_name, "IDENTIFIER") == 0) stats.total_identifiers++;
-    if (strcmp(token_name, "INT_LITERAL") == 0 ||
+    if (strcmp(token_name, "IDENTIFIER")    == 0) stats.total_identifiers++;
+    if (strcmp(token_name, "INT_LITERAL")   == 0 ||
         strcmp(token_name, "FLOAT_LITERAL") == 0) stats.total_numeric_literals++;
-    if (strcmp(token_name, "STRING_LITERAL") == 0) stats.total_string_literals++;
+    if (strcmp(token_name, "STRING_LITERAL")== 0) stats.total_string_literals++;
 }
 
 void print_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr != NULL) {
-        if (curr->lexeme_len > 0) {
-            printf("<%s,%s>\n", curr->token_name, curr->lexeme);
-        } else {
+    while (curr) {
+        if (curr->entry >= 0)
+            printf("<%s,%d>\n", curr->token_name, curr->entry);
+        else
             printf("<%s>\n", curr->token_name);
-        }
         curr = curr->next;
     }
 }
 
 void free_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr != NULL) {
+    while (curr) {
         TokenNode* next = curr->next;
         free(curr->token_name);
-        free(curr->lexeme);
         free(curr);
         curr = next;
     }
@@ -910,9 +941,9 @@ void print_statistics() {
     printf("════════════════════════════════════════════════════════════\n\n");
 }
 
-#line 914 "lex.yy.c"
+#line 945 "lex.yy.c"
 #define YY_NO_INPUT 1
-#line 916 "lex.yy.c"
+#line 947 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -1127,15 +1158,15 @@ YY_DECL
 		}
 
 	{
-#line 256 "triton.l"
+#line 287 "triton.l"
 
 
-#line 259 "triton.l"
+#line 290 "triton.l"
     /* ===================================================================
        1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN
        =================================================================== */
 
-#line 1139 "lex.yy.c"
+#line 1170 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1204,13 +1235,13 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 263 "triton.l"
+#line 294 "triton.l"
 { /* Ignorar espacios en medio de la línea */ }
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 265 "triton.l"
+#line 296 "triton.l"
 {
     // Continuación implícita: dentro de (), [] o {} los saltos de línea
     // se ignoran completamente — no generan NEWLINE ni INDENT/DEDENT.
@@ -1220,7 +1251,7 @@ YY_RULE_SETUP
     if (paren_depth > 0) {
         /* ignorar newline dentro de paréntesis/corchetes/llaves */
     } else {
-        add_token("NEWLINE", "");
+        add_token("NEWLINE", -1);
 
         int current_indent = 0;
         for(int i = 0; yytext[i] != '\0'; i++) {
@@ -1234,7 +1265,7 @@ YY_RULE_SETUP
         if (current_indent > indent_stack[top]) {
             if (top < MAX_DEPTH - 1) {
                 indent_stack[++top] = current_indent;
-                add_token("INDENT", "");
+                add_token("INDENT", -1);
             } else {
                 fprintf(stderr,
                     "[ERROR LEXICO FATAL] Nivel de indentación máximo superado\n"
@@ -1246,7 +1277,7 @@ YY_RULE_SETUP
         } else if (current_indent < indent_stack[top]) {
             while (top > 0 && indent_stack[top] > current_indent) {
                 top--;
-                add_token("DEDENT", "");
+                add_token("DEDENT", -1);
             }
             if (indent_stack[top] != current_indent) {
                 fprintf(stderr,
@@ -1266,121 +1297,120 @@ YY_RULE_SETUP
        =================================================================== */
 case 3:
 YY_RULE_SETUP
-#line 319 "triton.l"
-{ add_token("COMMENT", yytext); }
+#line 350 "triton.l"
+{ add_token("COMMENT", -1); }
 	YY_BREAK
 /* ===================================================================
        3) PALABRAS RESERVADAS
        =================================================================== */
 case 4:
 YY_RULE_SETUP
-#line 325 "triton.l"
-{ add_token("KW_IMPORT", yytext); }
+#line 356 "triton.l"
+{ add_token("KW_IMPORT", -1); }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 326 "triton.l"
-{ add_token("KW_AS", yytext); }
+#line 357 "triton.l"
+{ add_token("KW_AS", -1); }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 327 "triton.l"
-{ add_token("KW_DEF", yytext); }
+#line 358 "triton.l"
+{ add_token("KW_DEF", -1); }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 328 "triton.l"
-{ add_token("KW_IF", yytext); }
+#line 359 "triton.l"
+{ add_token("KW_IF", -1); }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 329 "triton.l"
-{ add_token("KW_ELIF", yytext); }
+#line 360 "triton.l"
+{ add_token("KW_ELIF", -1); }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 330 "triton.l"
-{ add_token("KW_ELSE", yytext); }
+#line 361 "triton.l"
+{ add_token("KW_ELSE", -1); }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 331 "triton.l"
-{ add_token("KW_FOR", yytext); }
+#line 362 "triton.l"
+{ add_token("KW_FOR", -1); }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 332 "triton.l"
-{ add_token("KW_WHILE", yytext); }
+#line 363 "triton.l"
+{ add_token("KW_WHILE", -1); }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 333 "triton.l"
-{ add_token("KW_IN", yytext); }
+#line 364 "triton.l"
+{ add_token("KW_IN", -1); }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 334 "triton.l"
-{ add_token("KW_BREAK", yytext); }
+#line 365 "triton.l"
+{ add_token("KW_BREAK", -1); }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 335 "triton.l"
-{ add_token("KW_CONTINUE", yytext); }
+#line 366 "triton.l"
+{ add_token("KW_CONTINUE", -1); }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 336 "triton.l"
-{ add_token("KW_RETURN", yytext); }
+#line 367 "triton.l"
+{ add_token("KW_RETURN", -1); }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 337 "triton.l"
-{ add_token("KW_PASS", yytext); }
+#line 368 "triton.l"
+{ add_token("KW_PASS", -1); }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 338 "triton.l"
-{ add_token("KW_AND", yytext); }
+#line 369 "triton.l"
+{ add_token("KW_AND", -1); }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 339 "triton.l"
-{ add_token("KW_OR", yytext); }
+#line 370 "triton.l"
+{ add_token("KW_OR", -1); }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 340 "triton.l"
-{ add_token("KW_NOT", yytext); }
+#line 371 "triton.l"
+{ add_token("KW_NOT", -1); }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 341 "triton.l"
-{ add_token("KW_IS", yytext); }
+#line 372 "triton.l"
+{ add_token("KW_IS", -1); }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 342 "triton.l"
-{ add_token("KW_TRUE", yytext); }
+#line 373 "triton.l"
+{ add_token("KW_TRUE", -1); }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 343 "triton.l"
-{ add_token("KW_FALSE", yytext); }
+#line 374 "triton.l"
+{ add_token("KW_FALSE", -1); }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 344 "triton.l"
-{ add_token("KW_NONE", yytext); }
+#line 375 "triton.l"
+{ add_token("KW_NONE", -1); }
 	YY_BREAK
 /* ===================================================================
        4) IDENTIFICADORES
        =================================================================== */
 case 24:
 YY_RULE_SETUP
-#line 350 "triton.l"
+#line 381 "triton.l"
 {
-    add_token("IDENTIFIER", yytext);
-    insert_into_table(idTable, yytext);
+    add_token("IDENTIFIER", insert_id(yytext));
 }
 	YY_BREAK
 /* ===================================================================
@@ -1390,7 +1420,7 @@ YY_RULE_SETUP
        =================================================================== */
 case 25:
 YY_RULE_SETUP
-#line 361 "triton.l"
+#line 391 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Token inválido '%s' - los identificadores no pueden comenzar con dígito\n"
@@ -1398,9 +1428,9 @@ YY_RULE_SETUP
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1422,7 +1452,7 @@ YY_LINENO_REWIND_TO(yy_bp + 2);
 (yy_c_buf_p) = yy_cp = yy_bp + 2;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 386 "triton.l"
+#line 416 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Prefijo hexadecimal sin valor '%s' - falta al menos un dígito hex\n"
@@ -1431,9 +1461,9 @@ YY_RULE_SETUP
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1445,7 +1475,7 @@ YY_LINENO_REWIND_TO(yy_bp + 2);
 (yy_c_buf_p) = yy_cp = yy_bp + 2;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 401 "triton.l"
+#line 431 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Prefijo binario sin valor '%s' - falta al menos un dígito binario\n"
@@ -1454,9 +1484,9 @@ YY_RULE_SETUP
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1468,7 +1498,7 @@ YY_LINENO_REWIND_TO(yy_bp + 2);
 (yy_c_buf_p) = yy_cp = yy_bp + 2;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 416 "triton.l"
+#line 446 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Prefijo octal sin valor '%s' - falta al menos un dígito octal\n"
@@ -1477,9 +1507,9 @@ YY_RULE_SETUP
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1492,7 +1522,7 @@ YY_LINENO_REWIND_TO(yy_cp - 1);
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 432 "triton.l"
+#line 462 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Exponente de float incompleto '%s' - falta el valor del exponente\n"
@@ -1501,9 +1531,9 @@ YY_RULE_SETUP
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1511,19 +1541,17 @@ YY_RULE_SETUP
 /* Enteros válidos: hex, binario, octal, decimal */
 case 30:
 YY_RULE_SETUP
-#line 448 "triton.l"
+#line 478 "triton.l"
 {
-    add_token("INT_LITERAL", yytext);
-    insert_into_table(numTable, yytext);
+    add_token("INT_LITERAL", insert_num(yytext, "int"));
 }
 	YY_BREAK
 /* Floats válidos */
 case 31:
 YY_RULE_SETUP
-#line 454 "triton.l"
+#line 483 "triton.l"
 {
-    add_token("FLOAT_LITERAL", yytext);
-    insert_into_table(numTable, yytext);
+    add_token("FLOAT_LITERAL", insert_num(yytext, "float"));
 }
 	YY_BREAK
 /* ===================================================================
@@ -1539,43 +1567,39 @@ YY_RULE_SETUP
 case 32:
 /* rule 32 can match eol */
 YY_RULE_SETUP
-#line 470 "triton.l"
+#line 498 "triton.l"
 {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 	YY_BREAK
 case 33:
 /* rule 33 can match eol */
 YY_RULE_SETUP
-#line 474 "triton.l"
+#line 501 "triton.l"
 {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 	YY_BREAK
 /* Strings simples válidas */
 case 34:
 YY_RULE_SETUP
-#line 480 "triton.l"
+#line 506 "triton.l"
 {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 484 "triton.l"
+#line 509 "triton.l"
 {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 	YY_BREAK
 /* Strings sin cerrar: llegan al fin de línea sin comilla de cierre */
 case 36:
 /* rule 36 can match eol */
 YY_RULE_SETUP
-#line 490 "triton.l"
+#line 514 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] String sin cerrar (comilla doble)\n"
@@ -1584,9 +1608,9 @@ YY_RULE_SETUP
         yylineno - 1);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1594,7 +1618,7 @@ YY_RULE_SETUP
 case 37:
 /* rule 37 can match eol */
 YY_RULE_SETUP
-#line 504 "triton.l"
+#line 528 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] String sin cerrar (comilla simple)\n"
@@ -1603,9 +1627,9 @@ YY_RULE_SETUP
         yylineno - 1);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -1620,209 +1644,209 @@ YY_RULE_SETUP
        =================================================================== */
 case 38:
 YY_RULE_SETUP
-#line 528 "triton.l"
-{ add_token("OP_PLUS_ASSIGN", yytext); }
+#line 552 "triton.l"
+{ add_token("OP_PLUS_ASSIGN", -1); }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 529 "triton.l"
-{ add_token("OP_MINUS_ASSIGN", yytext); }
+#line 553 "triton.l"
+{ add_token("OP_MINUS_ASSIGN", -1); }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 530 "triton.l"
-{ add_token("OP_STAR_ASSIGN", yytext); }
+#line 554 "triton.l"
+{ add_token("OP_STAR_ASSIGN", -1); }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 531 "triton.l"
-{ add_token("OP_SLASH_ASSIGN", yytext); }
+#line 555 "triton.l"
+{ add_token("OP_SLASH_ASSIGN", -1); }
 	YY_BREAK
 /* ===================================================================
        10) OPERADOR DE ASIGNACIÓN SIMPLE
        =================================================================== */
 case 42:
 YY_RULE_SETUP
-#line 537 "triton.l"
-{ add_token("OP_ASSIGN", yytext); }
+#line 561 "triton.l"
+{ add_token("OP_ASSIGN", -1); }
 	YY_BREAK
 /* ===================================================================
        10) OPERADORES ARITMÉTICOS
        =================================================================== */
 case 43:
 YY_RULE_SETUP
-#line 543 "triton.l"
-{ add_token("OP_DOUBLE_SLASH", yytext); }
+#line 567 "triton.l"
+{ add_token("OP_DOUBLE_SLASH", -1); }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 544 "triton.l"
-{ add_token("OP_PLUS", yytext); }
+#line 568 "triton.l"
+{ add_token("OP_PLUS", -1); }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 545 "triton.l"
-{ add_token("OP_MINUS", yytext); }
+#line 569 "triton.l"
+{ add_token("OP_MINUS", -1); }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 546 "triton.l"
-{ add_token("OP_STAR", yytext); }
+#line 570 "triton.l"
+{ add_token("OP_STAR", -1); }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 547 "triton.l"
-{ add_token("OP_SLASH", yytext); }
+#line 571 "triton.l"
+{ add_token("OP_SLASH", -1); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 548 "triton.l"
-{ add_token("OP_MOD", yytext); }
+#line 572 "triton.l"
+{ add_token("OP_MOD", -1); }
 	YY_BREAK
 /* ===================================================================
        11) OPERADORES RELACIONALES
        =================================================================== */
 case 49:
 YY_RULE_SETUP
-#line 554 "triton.l"
-{ add_token("OP_LE", yytext); }
+#line 578 "triton.l"
+{ add_token("OP_LE", -1); }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 555 "triton.l"
-{ add_token("OP_GE", yytext); }
+#line 579 "triton.l"
+{ add_token("OP_GE", -1); }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 556 "triton.l"
-{ add_token("OP_EQ", yytext); }
+#line 580 "triton.l"
+{ add_token("OP_EQ", -1); }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 557 "triton.l"
-{ add_token("OP_NEQ", yytext); }
+#line 581 "triton.l"
+{ add_token("OP_NEQ", -1); }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 558 "triton.l"
-{ add_token("OP_LT", yytext); }
+#line 582 "triton.l"
+{ add_token("OP_LT", -1); }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 559 "triton.l"
-{ add_token("OP_GT", yytext); }
+#line 583 "triton.l"
+{ add_token("OP_GT", -1); }
 	YY_BREAK
 /* ===================================================================
        12) OPERADORES BIT A BIT
        =================================================================== */
 case 55:
 YY_RULE_SETUP
-#line 565 "triton.l"
-{ add_token("OP_LSHIFT", yytext); }
+#line 589 "triton.l"
+{ add_token("OP_LSHIFT", -1); }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 566 "triton.l"
-{ add_token("OP_RSHIFT", yytext); }
+#line 590 "triton.l"
+{ add_token("OP_RSHIFT", -1); }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 567 "triton.l"
-{ add_token("OP_BIT_AND", yytext); }
+#line 591 "triton.l"
+{ add_token("OP_BIT_AND", -1); }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 568 "triton.l"
-{ add_token("OP_BIT_OR", yytext); }
+#line 592 "triton.l"
+{ add_token("OP_BIT_OR", -1); }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 569 "triton.l"
-{ add_token("OP_BIT_XOR", yytext); }
+#line 593 "triton.l"
+{ add_token("OP_BIT_XOR", -1); }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 570 "triton.l"
-{ add_token("OP_BIT_NOT", yytext); }
+#line 594 "triton.l"
+{ add_token("OP_BIT_NOT", -1); }
 	YY_BREAK
 /* ===================================================================
        13) DELIMITADORES Y PUNTUACIÓN
        =================================================================== */
 case 61:
 YY_RULE_SETUP
-#line 576 "triton.l"
-{ add_token("ARROW", yytext); }
+#line 600 "triton.l"
+{ add_token("ARROW", -1); }
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 577 "triton.l"
-{ paren_depth++; add_token("LPAREN", yytext); }
+#line 601 "triton.l"
+{ paren_depth++; add_token("LPAREN", -1); }
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 578 "triton.l"
-{ paren_depth--; add_token("RPAREN", yytext); }
+#line 602 "triton.l"
+{ paren_depth--; add_token("RPAREN", -1); }
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 579 "triton.l"
-{ paren_depth++; add_token("LBRACKET", yytext); }
+#line 603 "triton.l"
+{ paren_depth++; add_token("LBRACKET", -1); }
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 580 "triton.l"
-{ paren_depth--; add_token("RBRACKET", yytext); }
+#line 604 "triton.l"
+{ paren_depth--; add_token("RBRACKET", -1); }
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 581 "triton.l"
-{ paren_depth++; add_token("LBRACE", yytext); }
+#line 605 "triton.l"
+{ paren_depth++; add_token("LBRACE", -1); }
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 582 "triton.l"
-{ paren_depth--; add_token("RBRACE", yytext); }
+#line 606 "triton.l"
+{ paren_depth--; add_token("RBRACE", -1); }
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 583 "triton.l"
-{ add_token("COMMA", yytext); }
+#line 607 "triton.l"
+{ add_token("COMMA", -1); }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 584 "triton.l"
-{ add_token("COLON", yytext); }
+#line 608 "triton.l"
+{ add_token("COLON", -1); }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 585 "triton.l"
-{ add_token("DOT", yytext); }
+#line 609 "triton.l"
+{ add_token("DOT", -1); }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 586 "triton.l"
-{ add_token("SEMICOLON", yytext); }
+#line 610 "triton.l"
+{ add_token("SEMICOLON", -1); }
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 587 "triton.l"
-{ add_token("AT", yytext); }
+#line 611 "triton.l"
+{ add_token("AT", -1); }
 	YY_BREAK
 /* ===================================================================
        14) FIN DE ARCHIVO
        =================================================================== */
 case YY_STATE_EOF(INITIAL):
-#line 593 "triton.l"
+#line 617 "triton.l"
 {
                     while(top > 0) {
-                        add_token("DEDENT", "");
+                        add_token("DEDENT", -1);
                         top--;
                     }
 
                     print_scanner_output();
-                    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-                    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-                    print_table(strTable, "TABLA DE STRINGS");
+                    print_id_table();
+                    print_num_table();
+                    print_str_table();
                     print_statistics();
 
                     return 0;
@@ -1833,7 +1857,7 @@ case YY_STATE_EOF(INITIAL):
        =================================================================== */
 case 73:
 YY_RULE_SETUP
-#line 612 "triton.l"
+#line 636 "triton.l"
 {
     fprintf(stderr,
         "[ERROR LEXICO] Carácter inesperado '%s'\n"
@@ -1842,19 +1866,19 @@ YY_RULE_SETUP
         yytext, yylineno, (unsigned char)yytext[0], (unsigned char)yytext[0]);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 627 "triton.l"
+#line 651 "triton.l"
 ECHO;
 	YY_BREAK
-#line 1858 "lex.yy.c"
+#line 1882 "lex.yy.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2828,7 +2852,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 627 "triton.l"
+#line 651 "triton.l"
 
 
 int yywrap() { return 1; }
@@ -2851,9 +2875,7 @@ int main(int argc, char **argv) {
 
     fclose(archivo);
     free_scanner_output();
-    free_hash_table(idTable);
-    free_hash_table(numTable);
-    free_hash_table(strTable);
+    free_symbol_tables();
 
     return result;
 }

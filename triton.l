@@ -1,45 +1,13 @@
 %{
-/*
- * ═══════════════════════════════════════════════════════════════════════════
- * TRITON LEXER - LEXICAL ANALYZER FOR TRITON DSL
- *
- * Descripción:
- *   Analizador léxico robusto para un lenguaje similar a Python con soporte
- *   para características especiales de Triton (lenguaje para kernels GPU).
- *
- * Arquitectura:
- *   - Manejo de indentación significativa (style Python)
- *   - Generación automática de INDENT/DEDENT tokens
- *   - Tabla de símbolos (hash map): idTable, numTable, strTable
- *   - Output en lista simplemente enlazada para consumo por parser
- *
- * Compilación:
- *   $ flex triton.l
- *   $ gcc -o triton_lexer lex.yy.c -lfl -Wall -Werror
- *
- * Ejecución:
- *   $ ./triton_lexer codigo.py
- *
- * Autor: Generado + Mejorado
- * Fecha: 2026-04-27
- * ═══════════════════════════════════════════════════════════════════════════
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURACIÓN DEL LEXER
-// ═══════════════════════════════════════════════════════════════════════════
 
-#define HASH_SIZE 256
 #define MAX_DEPTH 100
-#define STRING_BUFFER_SIZE 1024
 
-// ═══════════════════════════════════════════════════════════════════════════
 // ESTADÍSTICAS DEL ANÁLISIS LÉXICO
-// ═══════════════════════════════════════════════════════════════════════════
 
 typedef struct {
     int total_tokens;
@@ -52,91 +20,136 @@ typedef struct {
 
 LexerStats stats = {0};
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ESTRUCTURA 1: HASH MAPS
-//   idTable  → identificadores (variables, funciones)
-//   numTable → literales numéricos (enteros y floats)
-//   strTable → literales de texto (strings)
-// ═══════════════════════════════════════════════════════════════════════════
+// SYMBOL TABLES (Linked Lists)
 
-typedef struct HashNode {
-    char* value;
-    struct HashNode* next;
-} HashNode;
+typedef struct IDNode {
+    int entry;
+    char* lexeme;
+    struct IDNode* next;
+} IDNode;
 
-HashNode* idTable[HASH_SIZE]  = {NULL};
-HashNode* numTable[HASH_SIZE] = {NULL};
-HashNode* strTable[HASH_SIZE] = {NULL};
+typedef struct NumNode {
+    int entry;
+    char* lexeme;
+    char* type;        // "int" or "float", detected at scan time
+    struct NumNode* next;
+} NumNode;
 
-unsigned int hash(const char* str) {
-    unsigned long hash_val = 5381;
-    int c;
-    while ((c = *str++)) {
-        hash_val = ((hash_val << 5) + hash_val) + c;
-    }
-    return hash_val % HASH_SIZE;
-}
+typedef struct StrNode {
+    int entry;
+    char* lexeme;
+    struct StrNode* next;
+} StrNode;
 
-void insert_into_table(HashNode** table, const char* value) {
-    unsigned int index = hash(value);
-    HashNode* curr = table[index];
+IDNode*  id_head  = NULL;
+NumNode* num_head = NULL;
+StrNode* str_head = NULL;
 
-    while(curr != NULL) {
-        if(strcmp(curr->value, value) == 0) return;
+int id_counter  = 0;
+int num_counter = 0;
+int str_counter = 0;
+
+// Returns entry number (existing or new)
+int insert_id(const char* lexeme) {
+    IDNode* curr = id_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
         curr = curr->next;
     }
 
-    HashNode* new_node = (HashNode*)malloc(sizeof(HashNode));
-    if (!new_node) {
-        fprintf(stderr, "[ERROR] No hay memoria para HashNode. Abortando.\n");
-        exit(EXIT_FAILURE);
-    }
+    IDNode* node = (IDNode*)malloc(sizeof(IDNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para IDNode.\n"); exit(EXIT_FAILURE); }
 
-    new_node->value = strdup(value);
-    if (!new_node->value) {
-        fprintf(stderr, "[ERROR] No hay memoria para strdup('%s'). Abortando.\n", value);
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
-
-    new_node->next = table[index];
-    table[index] = new_node;
+    node->entry  = id_counter++;
+    node->lexeme = strdup(lexeme);
+    node->next   = id_head;
+    id_head      = node;
+    return node->entry;
 }
 
-void print_table(HashNode** table, const char* title) {
-    printf("\n--- %s ---\n", title);
-    int empty = 1;
-
-    for(int i = 0; i < HASH_SIZE; i++) {
-        HashNode* curr = table[i];
-        while(curr != NULL) {
-            empty = 0;
-            printf("%s\n", curr->value);
-            curr = curr->next;
-        }
+// Returns entry number (existing or new)
+int insert_num(const char* lexeme, const char* type) {
+    NumNode* curr = num_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        curr = curr->next;
     }
 
-    if (empty) {
-        printf("La tabla está vacía.\n");
-    }
+    NumNode* node = (NumNode*)malloc(sizeof(NumNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para NumNode.\n"); exit(EXIT_FAILURE); }
+
+    node->entry  = num_counter++;
+    node->lexeme = strdup(lexeme);
+    node->type   = strdup(type);
+    node->next   = num_head;
+    num_head     = node;
+    return node->entry;
 }
 
-void free_hash_table(HashNode** table) {
-    for (int i = 0; i < HASH_SIZE; i++) {
-        HashNode* curr = table[i];
-        while (curr != NULL) {
-            HashNode* next = curr->next;
-            free(curr->value);
-            free(curr);
-            curr = next;
-        }
-        table[i] = NULL;
+// Returns entry number (existing or new)
+int insert_str(const char* lexeme) {
+    StrNode* curr = str_head;
+    while (curr != NULL) {
+        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        curr = curr->next;
     }
+
+    StrNode* node = (StrNode*)malloc(sizeof(StrNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para StrNode.\n"); exit(EXIT_FAILURE); }
+
+    node->entry  = str_counter++;
+    node->lexeme = strdup(lexeme);
+    node->next   = str_head;
+    str_head     = node;
+    return node->entry;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+void print_id_table() {
+    printf("\n--- Symbol Table: Identifiers ---\n");
+    printf("%-8s %-20s\n", "Entry #", "Lexeme");
+    if (!id_head) { printf("La tabla está vacía.\n"); return; }
+    // Collect into array for ordered printing
+    IDNode* arr[id_counter];
+    IDNode* curr = id_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < id_counter; i++)
+        printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+}
+
+void print_num_table() {
+    printf("\n--- Symbol Table: Numbers ---\n");
+    printf("%-8s %-20s %-10s\n", "Entry #", "Lexeme", "Type");
+    if (!num_head) { printf("La tabla está vacía.\n"); return; }
+    NumNode* arr[num_counter];
+    NumNode* curr = num_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < num_counter; i++)
+        printf("%-8d %-20s %-10s\n", arr[i]->entry, arr[i]->lexeme, arr[i]->type);
+}
+
+void print_str_table() {
+    printf("\n--- Symbol Table: Strings ---\n");
+    printf("%-8s %-20s\n", "Entry #", "Lexeme");
+    if (!str_head) { printf("La tabla está vacía.\n"); return; }
+    StrNode* arr[str_counter];
+    StrNode* curr = str_head;
+    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
+    for (int i = 0; i < str_counter; i++)
+        printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+}
+
+void free_symbol_tables() {
+    IDNode* ic = id_head;
+    while (ic) { IDNode* n = ic->next; free(ic->lexeme); free(ic); ic = n; }
+
+    NumNode* nc = num_head;
+    while (nc) { NumNode* n = nc->next; free(nc->lexeme); free(nc->type); free(nc); nc = n; }
+
+    StrNode* sc = str_head;
+    while (sc) { StrNode* n = sc->next; free(sc->lexeme); free(sc); sc = n; }
+}
+
 // ESTRUCTURA 2: PILA DE INDENTACIÓN
-// ═══════════════════════════════════════════════════════════════════════════
 
 int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
@@ -151,79 +164,57 @@ int top = 0;
 //   )                   ← cierra paréntesis, paren_depth = 0
 int paren_depth = 0;
 
-// ═══════════════════════════════════════════════════════════════════════════
 // ESTRUCTURA 3: SCANNER OUTPUT (Linked List)
-// ═══════════════════════════════════════════════════════════════════════════
 
 typedef struct TokenNode {
     char* token_name;
-    char* lexeme;
-    size_t lexeme_len;
-    int line_num;
+    int   entry;       // -1 if not referencing a symbol table
+    int   line_num;
     struct TokenNode* next;
 } TokenNode;
 
 TokenNode* scanner_head = NULL;
 TokenNode* scanner_tail = NULL;
 
-void add_token(const char* token_name, const char* lexeme) {
-    TokenNode* new_node = (TokenNode*)malloc(sizeof(TokenNode));
-    if (!new_node) {
-        fprintf(stderr, "[ERROR] No hay memoria para TokenNode. Abortando.\n");
-        exit(EXIT_FAILURE);
-    }
+void add_token(const char* token_name, int entry) {
+    TokenNode* node = (TokenNode*)malloc(sizeof(TokenNode));
+    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para TokenNode.\n"); exit(EXIT_FAILURE); }
 
-    new_node->token_name = strdup(token_name);
-    if (!new_node->token_name) {
-        fprintf(stderr, "[ERROR] No hay memoria para token_name. Abortando.\n");
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
+    node->token_name = strdup(token_name);
+    node->entry      = entry;
+    node->line_num   = yylineno;
+    node->next       = NULL;
 
-    new_node->lexeme = strdup(lexeme);
-    if (!new_node->lexeme) {
-        fprintf(stderr, "[ERROR] No hay memoria para lexeme. Abortando.\n");
-        free(new_node->token_name);
-        free(new_node);
-        exit(EXIT_FAILURE);
-    }
-
-    new_node->lexeme_len = strlen(lexeme);
-    new_node->line_num = yylineno;
-    new_node->next = NULL;
-
-    if (scanner_tail != NULL) {
-        scanner_tail->next = new_node;
-    } else {
-        scanner_head = new_node;
-    }
-    scanner_tail = new_node;
+    if (scanner_tail){
+        scanner_tail->next = node;
+    }else{
+        scanner_head = node;
+    }              
+    scanner_tail = node;
 
     stats.total_tokens++;
-    if (strcmp(token_name, "IDENTIFIER") == 0) stats.total_identifiers++;
-    if (strcmp(token_name, "INT_LITERAL") == 0 ||
+    if (strcmp(token_name, "IDENTIFIER")    == 0) stats.total_identifiers++;
+    if (strcmp(token_name, "INT_LITERAL")   == 0 ||
         strcmp(token_name, "FLOAT_LITERAL") == 0) stats.total_numeric_literals++;
-    if (strcmp(token_name, "STRING_LITERAL") == 0) stats.total_string_literals++;
+    if (strcmp(token_name, "STRING_LITERAL")== 0) stats.total_string_literals++;
 }
 
 void print_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr != NULL) {
-        if (curr->lexeme_len > 0) {
-            printf("<%s,%s>\n", curr->token_name, curr->lexeme);
-        } else {
+    while (curr) {
+        if (curr->entry >= 0)
+            printf("<%s,%d>\n", curr->token_name, curr->entry);
+        else
             printf("<%s>\n", curr->token_name);
-        }
         curr = curr->next;
     }
 }
 
 void free_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr != NULL) {
+    while (curr) {
         TokenNode* next = curr->next;
         free(curr->token_name);
-        free(curr->lexeme);
         free(curr);
         curr = next;
     }
@@ -270,7 +261,7 @@ OCTAL           [0-7]
     if (paren_depth > 0) {
         /* ignorar newline dentro de paréntesis/corchetes/llaves */
     } else {
-        add_token("NEWLINE", "");
+        add_token("NEWLINE", -1);
 
         int current_indent = 0;
         for(int i = 0; yytext[i] != '\0'; i++) {
@@ -284,7 +275,7 @@ OCTAL           [0-7]
         if (current_indent > indent_stack[top]) {
             if (top < MAX_DEPTH - 1) {
                 indent_stack[++top] = current_indent;
-                add_token("INDENT", "");
+                add_token("INDENT", -1);
             } else {
                 fprintf(stderr,
                     "[ERROR LEXICO FATAL] Nivel de indentación máximo superado\n"
@@ -296,7 +287,7 @@ OCTAL           [0-7]
         } else if (current_indent < indent_stack[top]) {
             while (top > 0 && indent_stack[top] > current_indent) {
                 top--;
-                add_token("DEDENT", "");
+                add_token("DEDENT", -1);
             }
             if (indent_stack[top] != current_indent) {
                 fprintf(stderr,
@@ -315,40 +306,39 @@ OCTAL           [0-7]
        2) COMENTARIOS
        =================================================================== */
 
-#.*             { add_token("COMMENT", yytext); }
+#.*             { add_token("COMMENT", -1); }
 
     /* ===================================================================
        3) PALABRAS RESERVADAS
        =================================================================== */
 
-"import"        { add_token("KW_IMPORT", yytext); }
-"as"            { add_token("KW_AS", yytext); }
-"def"           { add_token("KW_DEF", yytext); }
-"if"            { add_token("KW_IF", yytext); }
-"elif"          { add_token("KW_ELIF", yytext); }
-"else"          { add_token("KW_ELSE", yytext); }
-"for"           { add_token("KW_FOR", yytext); }
-"while"         { add_token("KW_WHILE", yytext); }
-"in"            { add_token("KW_IN", yytext); }
-"break"         { add_token("KW_BREAK", yytext); }
-"continue"      { add_token("KW_CONTINUE", yytext); }
-"return"        { add_token("KW_RETURN", yytext); }
-"pass"          { add_token("KW_PASS", yytext); }
-"and"           { add_token("KW_AND", yytext); }
-"or"            { add_token("KW_OR", yytext); }
-"not"           { add_token("KW_NOT", yytext); }
-"is"            { add_token("KW_IS", yytext); }
-"True"          { add_token("KW_TRUE", yytext); }
-"False"         { add_token("KW_FALSE", yytext); }
-"None"          { add_token("KW_NONE", yytext); }
+"import"        { add_token("KW_IMPORT", -1); }
+"as"            { add_token("KW_AS", -1); }
+"def"           { add_token("KW_DEF", -1); }
+"if"            { add_token("KW_IF", -1); }
+"elif"          { add_token("KW_ELIF", -1); }
+"else"          { add_token("KW_ELSE", -1); }
+"for"           { add_token("KW_FOR", -1); }
+"while"         { add_token("KW_WHILE", -1); }
+"in"            { add_token("KW_IN", -1); }
+"break"         { add_token("KW_BREAK", -1); }
+"continue"      { add_token("KW_CONTINUE", -1); }
+"return"        { add_token("KW_RETURN", -1); }
+"pass"          { add_token("KW_PASS", -1); }
+"and"           { add_token("KW_AND", -1); }
+"or"            { add_token("KW_OR", -1); }
+"not"           { add_token("KW_NOT", -1); }
+"is"            { add_token("KW_IS", -1); }
+"True"          { add_token("KW_TRUE", -1); }
+"False"         { add_token("KW_FALSE", -1); }
+"None"          { add_token("KW_NONE", -1); }
 
     /* ===================================================================
        4) IDENTIFICADORES
        =================================================================== */
 
 {LETTER}({LETTER}|{DIGIT})* {
-    add_token("IDENTIFIER", yytext);
-    insert_into_table(idTable, yytext);
+    add_token("IDENTIFIER", insert_id(yytext));
 }
 
     /* ===================================================================
@@ -364,9 +354,9 @@ OCTAL           [0-7]
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -390,9 +380,9 @@ OCTAL           [0-7]
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -405,9 +395,9 @@ OCTAL           [0-7]
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -420,9 +410,9 @@ OCTAL           [0-7]
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -436,23 +426,21 @@ OCTAL           [0-7]
         yytext, yylineno);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
 
     /* Enteros válidos: hex, binario, octal, decimal */
 0[xX]{HEX}+|0[bB]{BINARY}+|0[oO]{OCTAL}+|0|[1-9]{DIGIT}* {
-    add_token("INT_LITERAL", yytext);
-    insert_into_table(numTable, yytext);
+    add_token("INT_LITERAL", insert_num(yytext, "int"));
 }
 
     /* Floats válidos */
 ({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+ {
-    add_token("FLOAT_LITERAL", yytext);
-    insert_into_table(numTable, yytext);
+    add_token("FLOAT_LITERAL", insert_num(yytext, "float"));
 }
 
     /* ===================================================================
@@ -467,22 +455,18 @@ OCTAL           [0-7]
 
     /* Triple-quoted: """..."""  y  '''...'''  (pueden ser multilinea) */
 \"\"\"([^"\\]|\\.|\"[^"]|\"\"[^"])*\"\"\" {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 \'\'\'([^'\\]|\\.|\\'[^']|\'\'[^'])*\'\'\' {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 
     /* Strings simples válidas */
 \"([^"\\\n]|\\.)*\" {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 \'([^'\\\n]|\\.)*\' {
-    add_token("STRING_LITERAL", yytext);
-    insert_into_table(strTable, yytext);
+    add_token("STRING_LITERAL", insert_str(yytext));
 }
 
     /* Strings sin cerrar: llegan al fin de línea sin comilla de cierre */
@@ -494,9 +478,9 @@ OCTAL           [0-7]
         yylineno - 1);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -508,9 +492,9 @@ OCTAL           [0-7]
         yylineno - 1);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -524,66 +508,66 @@ OCTAL           [0-7]
        Los bitwise-assign, //=, %=, <<=, >>= no aparecen en kernels GPU.
        =================================================================== */
 
-"+="            { add_token("OP_PLUS_ASSIGN", yytext); }
-"-="            { add_token("OP_MINUS_ASSIGN", yytext); }
-"*="            { add_token("OP_STAR_ASSIGN", yytext); }
-"/="            { add_token("OP_SLASH_ASSIGN", yytext); }
+"+="            { add_token("OP_PLUS_ASSIGN", -1); }
+"-="            { add_token("OP_MINUS_ASSIGN", -1); }
+"*="            { add_token("OP_STAR_ASSIGN", -1); }
+"/="            { add_token("OP_SLASH_ASSIGN", -1); }
 
     /* ===================================================================
        10) OPERADOR DE ASIGNACIÓN SIMPLE
        =================================================================== */
 
-"="             { add_token("OP_ASSIGN", yytext); }
+"="             { add_token("OP_ASSIGN", -1); }
 
     /* ===================================================================
        10) OPERADORES ARITMÉTICOS
        =================================================================== */
 
-"//"            { add_token("OP_DOUBLE_SLASH", yytext); }
-"+"             { add_token("OP_PLUS", yytext); }
-"-"             { add_token("OP_MINUS", yytext); }
-"*"             { add_token("OP_STAR", yytext); }
-"/"             { add_token("OP_SLASH", yytext); }
-"%"             { add_token("OP_MOD", yytext); }
+"//"            { add_token("OP_DOUBLE_SLASH", -1); }
+"+"             { add_token("OP_PLUS", -1); }
+"-"             { add_token("OP_MINUS", -1); }
+"*"             { add_token("OP_STAR", -1); }
+"/"             { add_token("OP_SLASH", -1); }
+"%"             { add_token("OP_MOD", -1); }
 
     /* ===================================================================
        11) OPERADORES RELACIONALES
        =================================================================== */
 
-"<="            { add_token("OP_LE", yytext); }
-">="            { add_token("OP_GE", yytext); }
-"=="            { add_token("OP_EQ", yytext); }
-"!="            { add_token("OP_NEQ", yytext); }
-"<"             { add_token("OP_LT", yytext); }
-">"             { add_token("OP_GT", yytext); }
+"<="            { add_token("OP_LE", -1); }
+">="            { add_token("OP_GE", -1); }
+"=="            { add_token("OP_EQ", -1); }
+"!="            { add_token("OP_NEQ", -1); }
+"<"             { add_token("OP_LT", -1); }
+">"             { add_token("OP_GT", -1); }
 
     /* ===================================================================
        12) OPERADORES BIT A BIT
        =================================================================== */
 
-"<<"            { add_token("OP_LSHIFT", yytext); }
-">>"            { add_token("OP_RSHIFT", yytext); }
-"&"             { add_token("OP_BIT_AND", yytext); }
-"|"             { add_token("OP_BIT_OR", yytext); }
-"^"             { add_token("OP_BIT_XOR", yytext); }
-"~"             { add_token("OP_BIT_NOT", yytext); }
+"<<"            { add_token("OP_LSHIFT", -1); }
+">>"            { add_token("OP_RSHIFT", -1); }
+"&"             { add_token("OP_BIT_AND", -1); }
+"|"             { add_token("OP_BIT_OR", -1); }
+"^"             { add_token("OP_BIT_XOR", -1); }
+"~"             { add_token("OP_BIT_NOT", -1); }
 
     /* ===================================================================
        13) DELIMITADORES Y PUNTUACIÓN
        =================================================================== */
 
-"->"            { add_token("ARROW", yytext); }
-"("             { paren_depth++; add_token("LPAREN", yytext); }
-")"             { paren_depth--; add_token("RPAREN", yytext); }
-"["             { paren_depth++; add_token("LBRACKET", yytext); }
-"]"             { paren_depth--; add_token("RBRACKET", yytext); }
-"{"             { paren_depth++; add_token("LBRACE", yytext); }
-"}"             { paren_depth--; add_token("RBRACE", yytext); }
-","             { add_token("COMMA", yytext); }
-":"             { add_token("COLON", yytext); }
-"."             { add_token("DOT", yytext); }
-";"             { add_token("SEMICOLON", yytext); }
-"@"             { add_token("AT", yytext); }
+"->"            { add_token("ARROW", -1); }
+"("             { paren_depth++; add_token("LPAREN", -1); }
+")"             { paren_depth--; add_token("RPAREN", -1); }
+"["             { paren_depth++; add_token("LBRACKET", -1); }
+"]"             { paren_depth--; add_token("RBRACKET", -1); }
+"{"             { paren_depth++; add_token("LBRACE", -1); }
+"}"             { paren_depth--; add_token("RBRACE", -1); }
+","             { add_token("COMMA", -1); }
+":"             { add_token("COLON", -1); }
+"."             { add_token("DOT", -1); }
+";"             { add_token("SEMICOLON", -1); }
+"@"             { add_token("AT", -1); }
 
     /* ===================================================================
        14) FIN DE ARCHIVO
@@ -591,14 +575,14 @@ OCTAL           [0-7]
 
 <<EOF>>         {
                     while(top > 0) {
-                        add_token("DEDENT", "");
+                        add_token("DEDENT", -1);
                         top--;
                     }
 
                     print_scanner_output();
-                    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-                    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-                    print_table(strTable, "TABLA DE STRINGS");
+                    print_id_table();
+                    print_num_table();
+                    print_str_table();
                     print_statistics();
 
                     return 0;
@@ -616,9 +600,9 @@ OCTAL           [0-7]
         yytext, yylineno, (unsigned char)yytext[0], (unsigned char)yytext[0]);
     stats.error_count++;
     print_scanner_output();
-    print_table(idTable,  "TABLA DE IDENTIFICADORES");
-    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
-    print_table(strTable, "TABLA DE STRINGS");
+    print_id_table();
+    print_num_table();
+    print_str_table();
     print_statistics();
     exit(EXIT_FAILURE);
 }
@@ -645,9 +629,7 @@ int main(int argc, char **argv) {
 
     fclose(archivo);
     free_scanner_output();
-    free_hash_table(idTable);
-    free_hash_table(numTable);
-    free_hash_table(strTable);
+    free_symbol_tables();
 
     return result;
 }
