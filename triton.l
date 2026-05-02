@@ -53,12 +53,16 @@ int str_counter = 0;
 int insert_id(const char* lexeme) {
     IDNode* curr = id_head;
     while (curr != NULL) {
-        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        if (strcmp(curr->lexeme, lexeme) == 0){ 
+            return curr->entry;
+        } 
         curr = curr->next;
     }
 
     IDNode* node = (IDNode*)malloc(sizeof(IDNode));
     if (!node) { fprintf(stderr, "[ERROR] No hay memoria para IDNode.\n"); exit(EXIT_FAILURE); }
+
+    stats.total_identifiers++;
 
     node->entry  = id_counter++;
     node->lexeme = strdup(lexeme);
@@ -71,12 +75,16 @@ int insert_id(const char* lexeme) {
 int insert_num(const char* lexeme, const char* type) {
     NumNode* curr = num_head;
     while (curr != NULL) {
-        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        if (strcmp(curr->lexeme, lexeme) == 0){
+            return curr->entry;
+        } 
         curr = curr->next;
     }
 
     NumNode* node = (NumNode*)malloc(sizeof(NumNode));
     if (!node) { fprintf(stderr, "[ERROR] No hay memoria para NumNode.\n"); exit(EXIT_FAILURE); }
+
+    stats.total_numeric_literals++;
 
     node->entry  = num_counter++;
     node->lexeme = strdup(lexeme);
@@ -90,12 +98,16 @@ int insert_num(const char* lexeme, const char* type) {
 int insert_str(const char* lexeme) {
     StrNode* curr = str_head;
     while (curr != NULL) {
-        if (strcmp(curr->lexeme, lexeme) == 0) return curr->entry;
+        if (strcmp(curr->lexeme, lexeme) == 0){
+            return curr->entry;
+        } 
         curr = curr->next;
     }
 
     StrNode* node = (StrNode*)malloc(sizeof(StrNode));
     if (!node) { fprintf(stderr, "[ERROR] No hay memoria para StrNode.\n"); exit(EXIT_FAILURE); }
+
+    stats.total_string_literals++;
 
     node->entry  = str_counter++;
     node->lexeme = strdup(lexeme);
@@ -193,10 +205,6 @@ void add_token(const char* token_name, int entry) {
     scanner_tail = node;
 
     stats.total_tokens++;
-    if (strcmp(token_name, "IDENTIFIER")    == 0) stats.total_identifiers++;
-    if (strcmp(token_name, "INT_LITERAL")   == 0 ||
-        strcmp(token_name, "FLOAT_LITERAL") == 0) stats.total_numeric_literals++;
-    if (strcmp(token_name, "STRING_LITERAL")== 0) stats.total_string_literals++;
 }
 
 void print_scanner_output() {
