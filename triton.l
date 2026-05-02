@@ -10,8 +10,8 @@
  * Arquitectura:
  *   - Manejo de indentación significativa (style Python)
  *   - Generación automática de INDENT/DEDENT tokens
- *   - Tabla de símbolos (hash map) para identificadores y literales
- *   - Output en lista doblemente enlazada para consumo por parser
+ *   - Tabla de símbolos (hash map): idTable, numTable, strTable
+ *   - Output en lista simplemente enlazada para consumo por parser
  *
  * Compilación:
  *   $ flex triton.l
@@ -53,7 +53,10 @@ typedef struct {
 LexerStats stats = {0};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ESTRUCTURA 1: HASH MAPS (Tabla de Símbolos y Literales)
+// ESTRUCTURA 1: HASH MAPS
+//   idTable  → identificadores (variables, funciones)
+//   numTable → literales numéricos (enteros y floats)
+//   strTable → literales de texto (strings)
 // ═══════════════════════════════════════════════════════════════════════════
 
 typedef struct HashNode {
@@ -61,8 +64,9 @@ typedef struct HashNode {
     struct HashNode* next;
 } HashNode;
 
-HashNode* idTable[HASH_SIZE] = {NULL};
-HashNode* literalTable[HASH_SIZE] = {NULL};
+HashNode* idTable[HASH_SIZE]  = {NULL};
+HashNode* numTable[HASH_SIZE] = {NULL};
+HashNode* strTable[HASH_SIZE] = {NULL};
 
 unsigned int hash(const char* str) {
     unsigned long hash_val = 5381;
@@ -148,7 +152,7 @@ int top = 0;
 int paren_depth = 0;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ESTRUCTURA 3: SCANNER OUTPUT (Double Linked List)
+// ESTRUCTURA 3: SCANNER OUTPUT (Linked List)
 // ═══════════════════════════════════════════════════════════════════════════
 
 typedef struct TokenNode {
@@ -156,7 +160,6 @@ typedef struct TokenNode {
     char* lexeme;
     size_t lexeme_len;
     int line_num;
-    struct TokenNode* prev;
     struct TokenNode* next;
 } TokenNode;
 
@@ -187,7 +190,6 @@ void add_token(const char* token_name, const char* lexeme) {
 
     new_node->lexeme_len = strlen(lexeme);
     new_node->line_num = yylineno;
-    new_node->prev = scanner_tail;
     new_node->next = NULL;
 
     if (scanner_tail != NULL) {
@@ -341,13 +343,7 @@ OCTAL           [0-7]
 "None"          { add_token("KW_NONE", yytext); }
 
     /* ===================================================================
-       4) TOKENS TRITON ESPECÍFICOS
-       =================================================================== */
-
-tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
-
-    /* ===================================================================
-       5) IDENTIFICADORES
+       4) IDENTIFICADORES
        =================================================================== */
 
 {LETTER}({LETTER}|{DIGIT})* {
@@ -367,6 +363,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Línea: %d\n",
         yytext, yylineno);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
     /* ===================================================================
@@ -387,6 +389,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Ejemplo válido: 0xFF, 0x1A3\n",
         yytext, yylineno);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
 0[bB]/[^01] {
@@ -396,6 +404,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Ejemplo válido: 0b1010, 0b11001\n",
         yytext, yylineno);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
 0[oO]/[^0-7] {
@@ -405,6 +419,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Ejemplo válido: 0o755, 0o17\n",
         yytext, yylineno);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
     /* Exponente de float incompleto: 1e, 1e+, 1.5e- sin dígitos después */
@@ -415,18 +435,24 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Ejemplo válido: 1e10, 1.5e-3, 2.0E+8\n",
         yytext, yylineno);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
     /* Enteros válidos: hex, binario, octal, decimal */
 0[xX]{HEX}+|0[bB]{BINARY}+|0[oO]{OCTAL}+|0|[1-9]{DIGIT}* {
     add_token("INT_LITERAL", yytext);
-    insert_into_table(literalTable, yytext);
+    insert_into_table(numTable, yytext);
 }
 
     /* Floats válidos */
 ({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+ {
     add_token("FLOAT_LITERAL", yytext);
-    insert_into_table(literalTable, yytext);
+    insert_into_table(numTable, yytext);
 }
 
     /* ===================================================================
@@ -440,12 +466,24 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
        =================================================================== */
 
     /* Triple-quoted: """..."""  y  '''...'''  (pueden ser multilinea) */
-\"\"\"([^"\\]|\\.|\"[^"]|\"\"[^"])*\"\"\" { add_token("STRING_LITERAL", yytext); }
-\'\'\'([^'\\]|\\.|\\'[^']|\'\'[^'])*\'\'\' { add_token("STRING_LITERAL", yytext); }
+\"\"\"([^"\\]|\\.|\"[^"]|\"\"[^"])*\"\"\" {
+    add_token("STRING_LITERAL", yytext);
+    insert_into_table(strTable, yytext);
+}
+\'\'\'([^'\\]|\\.|\\'[^']|\'\'[^'])*\'\'\' {
+    add_token("STRING_LITERAL", yytext);
+    insert_into_table(strTable, yytext);
+}
 
     /* Strings simples válidas */
-\"([^"\\\n]|\\.)*\" { add_token("STRING_LITERAL", yytext); }
-\'([^'\\\n]|\\.)*\' { add_token("STRING_LITERAL", yytext); }
+\"([^"\\\n]|\\.)*\" {
+    add_token("STRING_LITERAL", yytext);
+    insert_into_table(strTable, yytext);
+}
+\'([^'\\\n]|\\.)*\' {
+    add_token("STRING_LITERAL", yytext);
+    insert_into_table(strTable, yytext);
+}
 
     /* Strings sin cerrar: llegan al fin de línea sin comilla de cierre */
 \"([^"\\\n]|\\.)*\n {
@@ -455,6 +493,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Sugerencia: agrega '\"' al final de la cadena\n",
         yylineno - 1);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 \'([^'\\\n]|\\.)*\n {
     fprintf(stderr,
@@ -463,6 +507,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Sugerencia: agrega \"'\" al final de la cadena\n",
         yylineno - 1);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
     /* ===================================================================
@@ -546,8 +596,9 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
                     }
 
                     print_scanner_output();
-                    print_table(idTable, "TABLA DE IDENTIFICADORES");
-                    print_table(literalTable, "TABLA DE LITERALES NUMERICOS");
+                    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+                    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+                    print_table(strTable, "TABLA DE STRINGS");
                     print_statistics();
 
                     return 0;
@@ -564,6 +615,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
         "  Carácter ASCII: %d (0x%X)\n",
         yytext, yylineno, (unsigned char)yytext[0], (unsigned char)yytext[0]);
     stats.error_count++;
+    print_scanner_output();
+    print_table(idTable,  "TABLA DE IDENTIFICADORES");
+    print_table(numTable, "TABLA DE LITERALES NUMERICOS");
+    print_table(strTable, "TABLA DE STRINGS");
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
 %%
@@ -589,7 +646,8 @@ int main(int argc, char **argv) {
     fclose(archivo);
     free_scanner_output();
     free_hash_table(idTable);
-    free_hash_table(literalTable);
+    free_hash_table(numTable);
+    free_hash_table(strTable);
 
     return result;
 }
