@@ -137,6 +137,16 @@ void free_hash_table(HashNode** table) {
 int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
 
+// Profundidad de paréntesis/corchetes/llaves abiertos.
+// En Python/Triton, una nueva línea dentro de (), [] o {} NO genera
+// NEWLINE ni INDENT/DEDENT — es una continuación implícita de la línea.
+// Ejemplo válido:
+//   x = tl.load(        ← abre paréntesis, paren_depth = 1
+//       ptr + offset,   ← newline ignorado
+//       mask=mask        ← newline ignorado
+//   )                   ← cierra paréntesis, paren_depth = 0
+int paren_depth = 0;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ESTRUCTURA 3: SCANNER OUTPUT (Double Linked List)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -250,42 +260,51 @@ OCTAL           [0-7]
 [ \t]+          { /* Ignorar espacios en medio de la línea */ }
 
 \n[ \t]*|\r\n[ \t]* {
-    add_token("NEWLINE", "");
+    // Continuación implícita: dentro de (), [] o {} los saltos de línea
+    // se ignoran completamente — no generan NEWLINE ni INDENT/DEDENT.
+    // Esto permite llamadas multilínea como:
+    //   tl.load(ptr + offsets,
+    //           mask=mask)
+    if (paren_depth > 0) {
+        /* ignorar newline dentro de paréntesis/corchetes/llaves */
+    } else {
+        add_token("NEWLINE", "");
 
-    int current_indent = 0;
-    for(int i = 0; yytext[i] != '\0'; i++) {
-        if(yytext[i] == ' ') {
-            current_indent++;
-        } else if(yytext[i] == '\t') {
-            current_indent = (current_indent + 8) & ~7;
+        int current_indent = 0;
+        for(int i = 0; yytext[i] != '\0'; i++) {
+            if(yytext[i] == ' ') {
+                current_indent++;
+            } else if(yytext[i] == '\t') {
+                current_indent = (current_indent + 8) & ~7;
+            }
         }
-    }
 
-    if (current_indent > indent_stack[top]) {
-        if (top < MAX_DEPTH - 1) {
-            indent_stack[++top] = current_indent;
-            add_token("INDENT", "");
-        } else {
-            fprintf(stderr,
-                "[ERROR LEXICO FATAL] Nivel de indentación máximo superado\n"
-                "  Máximo permitido: %d niveles\n"
-                "  Línea: %d\n",
-                MAX_DEPTH, yylineno);
-            exit(EXIT_FAILURE);
-        }
-    } else if (current_indent < indent_stack[top]) {
-        while (top > 0 && indent_stack[top] > current_indent) {
-            top--;
-            add_token("DEDENT", "");
-        }
-        if (indent_stack[top] != current_indent) {
-            fprintf(stderr,
-                "\n[ERROR LEXICO FATAL] Indentación inconsistente\n"
-                "  Línea: %d\n"
-                "  Indentación esperada: %d espacios\n"
-                "  Indentación encontrada: %d espacios\n",
-                yylineno, indent_stack[top], current_indent);
-            exit(EXIT_FAILURE);
+        if (current_indent > indent_stack[top]) {
+            if (top < MAX_DEPTH - 1) {
+                indent_stack[++top] = current_indent;
+                add_token("INDENT", "");
+            } else {
+                fprintf(stderr,
+                    "[ERROR LEXICO FATAL] Nivel de indentación máximo superado\n"
+                    "  Máximo permitido: %d niveles\n"
+                    "  Línea: %d\n",
+                    MAX_DEPTH, yylineno);
+                exit(EXIT_FAILURE);
+            }
+        } else if (current_indent < indent_stack[top]) {
+            while (top > 0 && indent_stack[top] > current_indent) {
+                top--;
+                add_token("DEDENT", "");
+            }
+            if (indent_stack[top] != current_indent) {
+                fprintf(stderr,
+                    "\n[ERROR LEXICO FATAL] Indentación inconsistente\n"
+                    "  Línea: %d\n"
+                    "  Indentación esperada: %d espacios\n"
+                    "  Indentación encontrada: %d espacios\n",
+                    yylineno, indent_stack[top], current_indent);
+                exit(EXIT_FAILURE);
+            }
         }
     }
 }
@@ -300,6 +319,8 @@ OCTAL           [0-7]
        3) PALABRAS RESERVADAS
        =================================================================== */
 
+"import"        { add_token("KW_IMPORT", yytext); }
+"as"            { add_token("KW_AS", yytext); }
 "def"           { add_token("KW_DEF", yytext); }
 "if"            { add_token("KW_IF", yytext); }
 "elif"          { add_token("KW_ELIF", yytext); }
@@ -502,12 +523,12 @@ tl\.{LETTER}({LETTER}|{DIGIT})* { add_token("TL_IDENTIFIER", yytext); }
        =================================================================== */
 
 "->"            { add_token("ARROW", yytext); }
-"("             { add_token("LPAREN", yytext); }
-")"             { add_token("RPAREN", yytext); }
-"["             { add_token("LBRACKET", yytext); }
-"]"             { add_token("RBRACKET", yytext); }
-"{"             { add_token("LBRACE", yytext); }
-"}"             { add_token("RBRACE", yytext); }
+"("             { paren_depth++; add_token("LPAREN", yytext); }
+")"             { paren_depth--; add_token("RPAREN", yytext); }
+"["             { paren_depth++; add_token("LBRACKET", yytext); }
+"]"             { paren_depth--; add_token("RBRACKET", yytext); }
+"{"             { paren_depth++; add_token("LBRACE", yytext); }
+"}"             { paren_depth--; add_token("RBRACE", yytext); }
 ","             { add_token("COMMA", yytext); }
 ":"             { add_token("COLON", yytext); }
 "."             { add_token("DOT", yytext); }
