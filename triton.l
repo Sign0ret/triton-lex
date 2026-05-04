@@ -350,26 +350,6 @@ OCTAL           [0-7]
 }
 
     /* ===================================================================
-       6) TOKENS INVÁLIDOS: dígito seguido de letra (ej: 1a, 3xyz)
-       Debe ir ANTES de INT_LITERAL e IDENTIFIER para que el maximal
-       munch capture el token completo como error y no lo divida.
-       =================================================================== */
-
-{DIGIT}+{LETTER}({LETTER}|{DIGIT})* {
-    fprintf(stderr,
-        "[ERROR LEXICO] Token inválido '%s' - los identificadores no pueden comenzar con dígito\n"
-        "  Línea: %d\n",
-        yytext, yylineno);
-    stats.error_count++;
-    print_scanner_output();
-    print_id_table();
-    print_num_table();
-    print_str_table();
-    print_statistics();
-    exit(EXIT_FAILURE);
-}
-
-    /* ===================================================================
        7) LITERALES NUMÉRICOS
 
        ORDEN IMPORTANTE:
@@ -449,6 +429,26 @@ OCTAL           [0-7]
     /* Floats válidos */
 ({DIGIT}*\.{DIGIT}+|{DIGIT}+\.)([eE][+-]?{DIGIT}+)?|{DIGIT}+[eE][+-]?{DIGIT}+ {
     add_token("FLOAT_LITERAL", insert_num(yytext, "float"));
+}
+
+    /* ===================================================================
+       6) TOKENS INVÁLIDOS: dígito seguido de letra (ej: 1a, 3xyz)
+       Debe ir ANTES de INT_LITERAL e IDENTIFIER para que el maximal
+       munch capture el token completo como error y no lo divida.
+       =================================================================== */
+
+{DIGIT}+{LETTER}({LETTER}|{DIGIT})* {
+    fprintf(stderr,
+        "[ERROR LEXICO] Token inválido '%s' - los identificadores no pueden comenzar con dígito\n"
+        "  Línea: %d\n",
+        yytext, yylineno);
+    stats.error_count++;
+    print_scanner_output();
+    print_id_table();
+    print_num_table();
+    print_str_table();
+    print_statistics();
+    exit(EXIT_FAILURE);
 }
 
     /* ===================================================================
