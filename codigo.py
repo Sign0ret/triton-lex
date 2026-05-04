@@ -1,4 +1,5 @@
 a = 4
+h = "pepe"
 if a == 7:
     b = 5
     if b == 5:
