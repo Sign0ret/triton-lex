@@ -37,12 +37,6 @@ chmod +x test.sh
 
 | Archivo | Tipo | Descripción |
 |---|---|---|
-| `basico.py` | ✅ Válido | Identificadores, keywords, literales enteros/flotantes e indentación básica |
-| `continuacion_implicita.py` | ✅ Válido | Continuación implícita de línea en listas y diccionarios |
-| `indent_paren.py` | ✅ Válido | Indentación multinivel y continuación implícita dentro de paréntesis |
-| `numericos_completos.py` | ✅ Válido | Todos los formatos de literales flotantes (`.5`, `5.e10`, `2E+3`) |
-| `operadores_strings.py` | ✅ Válido | Operadores compuestos, condicionales y strings con escapes |
-| `tokens_restantes.py` | ✅ Válido | Bucles, colecciones, operadores de comparación y bit a bit |
 | `err_bin_prefix.py` | ❌ Error | Prefijo binario sin dígitos (`0b`) |
 | `err_caracter.py` | ❌ Error | Carácter inválido no reconocido |
 | `err_float_dot_e.py` | ❌ Error | Float con punto y exponente mal formado |
