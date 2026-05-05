@@ -1,18 +1,5 @@
 #!/bin/bash
 
-# ═════════════════════════════════════════════════════════════════════════════
-# BUILD SCRIPT - TRITON LEXER MEJORADO
-#
-# REQUISITOS:
-#   - flex (utilidad para generar analizadores léxicos)
-#   - gcc (compilador C)
-#
-# INSTALACIÓN:
-#   Ubuntu/Debian:  sudo apt-get install flex gcc build-essential
-#   macOS:          brew install flex gcc
-#   Windows (WSL):  sudo apt-get install flex gcc build-essential
-# ═════════════════════════════════════════════════════════════════════════════
-
 LEX_FILE="triton.l"
 EXE_NAME="triton_lexer"
 TEST_FILE="codigo.py"
@@ -25,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
-echo -e "${YELLOW}BUILD: TRITON LEXER MEJORADO${NC}"
+echo -e "${YELLOW}BUILD: TRITON LEXER${NC}"
 echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}\n"
 
 # 1. Limpiar
@@ -73,16 +60,3 @@ else
     echo -e "${YELLOW}[NOTA] Archivo de prueba '$TEST_FILE' no encontrado${NC}\n"
     echo -e "${YELLOW}Uso: ./$EXE_NAME <archivo.py>${NC}\n"
 fi
-
-echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}BUILD COMPLETADO${NC}"
-echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}\n"
-
-echo -e "${YELLOW}Información útil:${NC}"
-echo -e "  Ejecutable generado: ${GREEN}./$EXE_NAME${NC}"
-echo -e "  Código fuente:       ${GREEN}$LEX_FILE${NC}"
-echo -e "  Código C generado:   ${GREEN}lex.yy.c${NC}"
-echo -e "  Uso:                 ${GREEN}./$EXE_NAME archivo.py${NC}\n"
-
-echo -e "${YELLOW}Para compilar sin warnings-como-errores:${NC}"
-echo -e "  ${GREEN}gcc -o $EXE_NAME lex.yy.c -lfl${NC}\n"
