@@ -7,5 +7,6 @@ if a == 7:
         c = 1E+3
         if b == 2:
                         d = 30.1e-90
-else:
+else:   
     b = a
+

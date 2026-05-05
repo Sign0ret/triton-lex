@@ -3,9 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// CONFIGURACIÓN DEL LEXER
-
-#define MAX_DEPTH 100
+#define MAX_DEPTH 100 // Identación máxima
 
 // ESTADÍSTICAS DEL ANÁLISIS LÉXICO
 
@@ -31,7 +29,7 @@ typedef struct IDNode {
 typedef struct NumNode {
     int entry;
     char* lexeme;
-    char* type;        // "int" or "float", detected at scan time
+    char* type;       
     struct NumNode* next;
 } NumNode;
 
@@ -60,7 +58,10 @@ int insert_id(const char* lexeme) {
     }
 
     IDNode* node = (IDNode*)malloc(sizeof(IDNode));
-    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para IDNode.\n"); exit(EXIT_FAILURE); }
+    if (!node){
+        fprintf(stderr, "[ERROR] No hay memoria para IDNode.\n");
+        exit(EXIT_FAILURE);
+    }
 
     stats.total_identifiers++;
 
@@ -82,7 +83,10 @@ int insert_num(const char* lexeme, const char* type) {
     }
 
     NumNode* node = (NumNode*)malloc(sizeof(NumNode));
-    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para NumNode.\n"); exit(EXIT_FAILURE); }
+    if (!node){
+        fprintf(stderr, "[ERROR] No hay memoria para NumNode.\n"); 
+        exit(EXIT_FAILURE); 
+    }
 
     stats.total_numeric_literals++;
 
@@ -105,7 +109,10 @@ int insert_str(const char* lexeme) {
     }
 
     StrNode* node = (StrNode*)malloc(sizeof(StrNode));
-    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para StrNode.\n"); exit(EXIT_FAILURE); }
+    if (!node){
+        fprintf(stderr, "[ERROR] No hay memoria para StrNode.\n");
+        exit(EXIT_FAILURE);
+    }
 
     stats.total_string_literals++;
 
@@ -119,46 +126,83 @@ int insert_str(const char* lexeme) {
 void print_id_table() {
     printf("\n--- Symbol Table: Identifiers ---\n");
     printf("%-8s %-20s\n", "Entry #", "Lexeme");
-    if (!id_head) { printf("La tabla está vacía.\n"); return; }
+
+    if(!id_head){
+        printf("La tabla está vacía.\n");
+        return;
+    }
     // Collect into array for ordered printing
     IDNode* arr[id_counter];
     IDNode* curr = id_head;
-    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
-    for (int i = 0; i < id_counter; i++)
+    while(curr){
+        arr[curr->entry] = curr;
+        curr = curr->next; 
+    }
+
+    for(int i = 0; i < id_counter; i++){
         printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+    }
 }
 
 void print_num_table() {
     printf("\n--- Symbol Table: Numbers ---\n");
     printf("%-8s %-20s %-10s\n", "Entry #", "Lexeme", "Type");
-    if (!num_head) { printf("La tabla está vacía.\n"); return; }
+
+    if (!num_head){
+        printf("La tabla está vacía.\n");
+        return;
+    }
+
     NumNode* arr[num_counter];
     NumNode* curr = num_head;
-    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
-    for (int i = 0; i < num_counter; i++)
+
+    while(curr){
+        arr[curr->entry] = curr;
+        curr = curr->next;
+    }
+
+    for(int i = 0; i < num_counter; i++){
         printf("%-8d %-20s %-10s\n", arr[i]->entry, arr[i]->lexeme, arr[i]->type);
+    }
 }
 
 void print_str_table() {
     printf("\n--- Symbol Table: Strings ---\n");
     printf("%-8s %-20s\n", "Entry #", "Lexeme");
-    if (!str_head) { printf("La tabla está vacía.\n"); return; }
+
+    if(!str_head){ 
+        printf("La tabla está vacía.\n");
+        return; 
+    }
+
     StrNode* arr[str_counter];
     StrNode* curr = str_head;
-    while (curr) { arr[curr->entry] = curr; curr = curr->next; }
-    for (int i = 0; i < str_counter; i++)
+
+    while(curr){
+        arr[curr->entry] = curr;
+        curr = curr->next;
+    }
+
+    for (int i = 0; i < str_counter; i++){
         printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+    }
 }
 
 void free_symbol_tables() {
     IDNode* ic = id_head;
-    while (ic) { IDNode* n = ic->next; free(ic->lexeme); free(ic); ic = n; }
+    while(ic){
+        IDNode* n = ic->next; free(ic->lexeme); free(ic); ic = n; 
+    }
 
     NumNode* nc = num_head;
-    while (nc) { NumNode* n = nc->next; free(nc->lexeme); free(nc->type); free(nc); nc = n; }
+    while(nc){
+        NumNode* n = nc->next; free(nc->lexeme); free(nc->type); free(nc); nc = n;
+    }
 
     StrNode* sc = str_head;
-    while (sc) { StrNode* n = sc->next; free(sc->lexeme); free(sc); sc = n; }
+    while(sc){
+        StrNode* n = sc->next; free(sc->lexeme); free(sc); sc = n;
+    }
 }
 
 // ESTRUCTURA 2: PILA DE INDENTACIÓN
@@ -167,20 +211,14 @@ int indent_stack[MAX_DEPTH] = {0};
 int top = 0;
 
 // Profundidad de paréntesis/corchetes/llaves abiertos.
-// En Python/Triton, una nueva línea dentro de (), [] o {} NO genera
-// NEWLINE ni INDENT/DEDENT — es una continuación implícita de la línea.
-// Ejemplo válido:
-//   x = tl.load(        ← abre paréntesis, paren_depth = 1
-//       ptr + offset,   ← newline ignorado
-//       mask=mask        ← newline ignorado
-//   )                   ← cierra paréntesis, paren_depth = 0
+
 int paren_depth = 0;
 
 // ESTRUCTURA 3: SCANNER OUTPUT (Linked List)
 
 typedef struct TokenNode {
     char* token_name;
-    int   entry;       // -1 if not referencing a symbol table
+    int   entry;       // -1 if not referencing a symbol table like keywords
     int   line_num;
     struct TokenNode* next;
 } TokenNode;
@@ -190,7 +228,9 @@ TokenNode* scanner_tail = NULL;
 
 void add_token(const char* token_name, int entry) {
     TokenNode* node = (TokenNode*)malloc(sizeof(TokenNode));
-    if (!node) { fprintf(stderr, "[ERROR] No hay memoria para TokenNode.\n"); exit(EXIT_FAILURE); }
+    if(!node){
+        fprintf(stderr, "[ERROR] No hay memoria para TokenNode.\n"); exit(EXIT_FAILURE); 
+    }
 
     node->token_name = strdup(token_name);
     node->entry      = entry;
@@ -209,18 +249,20 @@ void add_token(const char* token_name, int entry) {
 
 void print_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr) {
-        if (curr->entry >= 0)
+    while(curr){
+        if (curr->entry >= 0){
             printf("<%s,%d>\n", curr->token_name, curr->entry);
-        else
+        }
+        else{
             printf("<%s>\n", curr->token_name);
+        }
         curr = curr->next;
     }
 }
 
 void free_scanner_output() {
     TokenNode* curr = scanner_head;
-    while (curr) {
+    while(curr){
         TokenNode* next = curr->next;
         free(curr->token_name);
         free(curr);
@@ -254,15 +296,15 @@ OCTAL           [0-7]
 
 %%
 
-    /* ===================================================================
+    /* 
        1) ESPACIOS EN BLANCO Y CONTROL DE INDENTACIÓN
-       =================================================================== */
+    */
 
 [ \t]+          { /* Ignorar espacios en medio de la línea */ }
 
 \n[ \t]*|\r\n[ \t]* {
     // Continuación implícita: dentro de (), [] o {} los saltos de línea
-    // se ignoran completamente — no generan NEWLINE ni INDENT/DEDENT.
+    // se ignoran completamente, no generan NEWLINE ni INDENT/DEDENT.
     // Esto permite llamadas multilínea como:
     //   tl.load(ptr + offsets,
     //           mask=mask)
@@ -310,15 +352,15 @@ OCTAL           [0-7]
     }
 }
 
-    /* ===================================================================
+    /* 
        2) COMENTARIOS
-       =================================================================== */
+    */
 
 #.*             { add_token("COMMENT", -1); }
 
-    /* ===================================================================
+    /* 
        3) PALABRAS RESERVADAS
-       =================================================================== */
+    */
 
 "import"        { add_token("KW_IMPORT", -1); }
 "as"            { add_token("KW_AS", -1); }
@@ -341,22 +383,22 @@ OCTAL           [0-7]
 "False"         { add_token("KW_FALSE", -1); }
 "None"          { add_token("KW_NONE", -1); }
 
-    /* ===================================================================
+    /* 
        4) IDENTIFICADORES
-       =================================================================== */
+    */
 
 {LETTER}({LETTER}|{DIGIT})* {
     add_token("IDENTIFIER", insert_id(yytext));
 }
 
-    /* ===================================================================
+    /* 
        7) LITERALES NUMÉRICOS
 
        ORDEN IMPORTANTE:
          1. Prefijos inválidos (0x, 0b, 0o sin dígitos)  → error
          2. Exponente incompleto (1e, 1e+)               → error
          3. Enteros y floats válidos
-       =================================================================== */
+        */
 
     /* Prefijos numéricos sin dígitos después: usa trailing context (/) para
        no consumir el carácter siguiente y que sea analizado normalmente */
@@ -431,11 +473,9 @@ OCTAL           [0-7]
     add_token("FLOAT_LITERAL", insert_num(yytext, "float"));
 }
 
-    /* ===================================================================
+    /* 
        6) TOKENS INVÁLIDOS: dígito seguido de letra (ej: 1a, 3xyz)
-       Debe ir ANTES de INT_LITERAL e IDENTIFIER para que el maximal
-       munch capture el token completo como error y no lo divida.
-       =================================================================== */
+    */
 
 {DIGIT}+{LETTER}({LETTER}|{DIGIT})* {
     fprintf(stderr,
@@ -451,20 +491,18 @@ OCTAL           [0-7]
     exit(EXIT_FAILURE);
 }
 
-    /* ===================================================================
+    /* 
        8) LITERALES DE TEXTO (Strings)
+    */
 
-       ORDEN IMPORTANTE:
-         1. Triple-quoted (antes que simples, son más largas)
-         2. f-strings (antes que simples)
-         3. Strings simples válidas
-         4. Strings sin cerrar → error
-       =================================================================== */
+    /*
+    Triple-quoted: """..."""  y  '''...'''  (pueden ser multilinea) 
+    */
 
-    /* Triple-quoted: """..."""  y  '''...'''  (pueden ser multilinea) */
 \"\"\"([^"\\]|\\.|\"[^"]|\"\"[^"])*\"\"\" {
     add_token("STRING_LITERAL", insert_str(yytext));
 }
+
 \'\'\'([^'\\]|\\.|\\'[^']|\'\'[^'])*\'\'\' {
     add_token("STRING_LITERAL", insert_str(yytext));
 }
@@ -507,29 +545,24 @@ OCTAL           [0-7]
     exit(EXIT_FAILURE);
 }
 
-    /* ===================================================================
+    /* 
        9) OPERADORES COMPUESTOS (deben ir ANTES que los simples)
-
-       Solo los relevantes para Triton DSL:
-         += y -= para acumuladores
-         *= y /= para escalado de valores
-       Los bitwise-assign, //=, %=, <<=, >>= no aparecen en kernels GPU.
-       =================================================================== */
+    */
 
 "+="            { add_token("OP_PLUS_ASSIGN", -1); }
 "-="            { add_token("OP_MINUS_ASSIGN", -1); }
 "*="            { add_token("OP_STAR_ASSIGN", -1); }
 "/="            { add_token("OP_SLASH_ASSIGN", -1); }
 
-    /* ===================================================================
+    /* 
        10) OPERADOR DE ASIGNACIÓN SIMPLE
-       =================================================================== */
+    */
 
 "="             { add_token("OP_ASSIGN", -1); }
 
-    /* ===================================================================
+    /* 
        10) OPERADORES ARITMÉTICOS
-       =================================================================== */
+    */
 
 "//"            { add_token("OP_DOUBLE_SLASH", -1); }
 "+"             { add_token("OP_PLUS", -1); }
@@ -538,9 +571,9 @@ OCTAL           [0-7]
 "/"             { add_token("OP_SLASH", -1); }
 "%"             { add_token("OP_MOD", -1); }
 
-    /* ===================================================================
+    /* 
        11) OPERADORES RELACIONALES
-       =================================================================== */
+        */
 
 "<="            { add_token("OP_LE", -1); }
 ">="            { add_token("OP_GE", -1); }
@@ -549,9 +582,9 @@ OCTAL           [0-7]
 "<"             { add_token("OP_LT", -1); }
 ">"             { add_token("OP_GT", -1); }
 
-    /* ===================================================================
+    /* 
        12) OPERADORES BIT A BIT
-       =================================================================== */
+        */
 
 "<<"            { add_token("OP_LSHIFT", -1); }
 ">>"            { add_token("OP_RSHIFT", -1); }
@@ -560,9 +593,9 @@ OCTAL           [0-7]
 "^"             { add_token("OP_BIT_XOR", -1); }
 "~"             { add_token("OP_BIT_NOT", -1); }
 
-    /* ===================================================================
+    /* 
        13) DELIMITADORES Y PUNTUACIÓN
-       =================================================================== */
+        */
 
 "->"            { add_token("ARROW", -1); }
 "("             { paren_depth++; add_token("LPAREN", -1); }
@@ -577,9 +610,9 @@ OCTAL           [0-7]
 ";"             { add_token("SEMICOLON", -1); }
 "@"             { add_token("AT", -1); }
 
-    /* ===================================================================
+    /* 
        14) FIN DE ARCHIVO
-       =================================================================== */
+    */
 
 <<EOF>>         {
                     while(top > 0) {
@@ -596,9 +629,9 @@ OCTAL           [0-7]
                     return 0;
                 }
 
-    /* ===================================================================
+    /* 
        ERROR LÉXICO
-       =================================================================== */
+    */
 
 .               {
     fprintf(stderr,
@@ -620,13 +653,13 @@ OCTAL           [0-7]
 int yywrap() { return 1; }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
+    if(argc < 2){
         fprintf(stderr, "Uso: %s <archivo_de_entrada.py>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     FILE *archivo = fopen(argv[1], "r");
-    if (!archivo) {
+    if(!archivo){
         fprintf(stderr, "Error: No se pudo abrir el archivo '%s'\n", argv[1]);
         perror("fopen");
         return EXIT_FAILURE;
