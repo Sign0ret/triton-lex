@@ -64,59 +64,60 @@ extern int yydebug;
     KW_IMPORT = 265,               /* KW_IMPORT  */
     KW_AS = 266,                   /* KW_AS  */
     KW_DEF = 267,                  /* KW_DEF  */
-    KW_IF = 268,                   /* KW_IF  */
-    KW_ELIF = 269,                 /* KW_ELIF  */
-    KW_ELSE = 270,                 /* KW_ELSE  */
-    KW_FOR = 271,                  /* KW_FOR  */
-    KW_WHILE = 272,                /* KW_WHILE  */
-    KW_IN = 273,                   /* KW_IN  */
-    KW_BREAK = 274,                /* KW_BREAK  */
-    KW_CONTINUE = 275,             /* KW_CONTINUE  */
-    KW_RETURN = 276,               /* KW_RETURN  */
-    KW_PASS = 277,                 /* KW_PASS  */
-    KW_AND = 278,                  /* KW_AND  */
-    KW_OR = 279,                   /* KW_OR  */
-    KW_NOT = 280,                  /* KW_NOT  */
-    KW_IS = 281,                   /* KW_IS  */
-    KW_TRUE = 282,                 /* KW_TRUE  */
-    KW_FALSE = 283,                /* KW_FALSE  */
-    KW_NONE = 284,                 /* KW_NONE  */
-    OP_ASSIGN = 285,               /* OP_ASSIGN  */
-    OP_PLUS_ASSIGN = 286,          /* OP_PLUS_ASSIGN  */
-    OP_MINUS_ASSIGN = 287,         /* OP_MINUS_ASSIGN  */
-    OP_STAR_ASSIGN = 288,          /* OP_STAR_ASSIGN  */
-    OP_SLASH_ASSIGN = 289,         /* OP_SLASH_ASSIGN  */
-    OP_PLUS = 290,                 /* OP_PLUS  */
-    OP_MINUS = 291,                /* OP_MINUS  */
-    OP_STAR = 292,                 /* OP_STAR  */
-    OP_SLASH = 293,                /* OP_SLASH  */
-    OP_DOUBLE_SLASH = 294,         /* OP_DOUBLE_SLASH  */
-    OP_MOD = 295,                  /* OP_MOD  */
-    OP_EQ = 296,                   /* OP_EQ  */
-    OP_NEQ = 297,                  /* OP_NEQ  */
-    OP_LT = 298,                   /* OP_LT  */
-    OP_LE = 299,                   /* OP_LE  */
-    OP_GT = 300,                   /* OP_GT  */
-    OP_GE = 301,                   /* OP_GE  */
-    OP_LSHIFT = 302,               /* OP_LSHIFT  */
-    OP_RSHIFT = 303,               /* OP_RSHIFT  */
-    OP_BIT_AND = 304,              /* OP_BIT_AND  */
-    OP_BIT_OR = 305,               /* OP_BIT_OR  */
-    OP_BIT_XOR = 306,              /* OP_BIT_XOR  */
-    OP_BIT_NOT = 307,              /* OP_BIT_NOT  */
-    LPAREN = 308,                  /* LPAREN  */
-    RPAREN = 309,                  /* RPAREN  */
-    LBRACKET = 310,                /* LBRACKET  */
-    RBRACKET = 311,                /* RBRACKET  */
-    LBRACE = 312,                  /* LBRACE  */
-    RBRACE = 313,                  /* RBRACE  */
-    COMMA = 314,                   /* COMMA  */
-    COLON = 315,                   /* COLON  */
-    DOT = 316,                     /* DOT  */
-    SEMICOLON = 317,               /* SEMICOLON  */
-    AT = 318,                      /* AT  */
-    ARROW = 319,                   /* ARROW  */
-    UMINUS = 320                   /* UMINUS  */
+    KW_JIT = 268,                  /* KW_JIT  */
+    KW_IF = 269,                   /* KW_IF  */
+    KW_ELIF = 270,                 /* KW_ELIF  */
+    KW_ELSE = 271,                 /* KW_ELSE  */
+    KW_FOR = 272,                  /* KW_FOR  */
+    KW_WHILE = 273,                /* KW_WHILE  */
+    KW_IN = 274,                   /* KW_IN  */
+    KW_BREAK = 275,                /* KW_BREAK  */
+    KW_CONTINUE = 276,             /* KW_CONTINUE  */
+    KW_RETURN = 277,               /* KW_RETURN  */
+    KW_PASS = 278,                 /* KW_PASS  */
+    KW_AND = 279,                  /* KW_AND  */
+    KW_OR = 280,                   /* KW_OR  */
+    KW_NOT = 281,                  /* KW_NOT  */
+    KW_IS = 282,                   /* KW_IS  */
+    KW_TRUE = 283,                 /* KW_TRUE  */
+    KW_FALSE = 284,                /* KW_FALSE  */
+    KW_NONE = 285,                 /* KW_NONE  */
+    OP_ASSIGN = 286,               /* OP_ASSIGN  */
+    OP_PLUS_ASSIGN = 287,          /* OP_PLUS_ASSIGN  */
+    OP_MINUS_ASSIGN = 288,         /* OP_MINUS_ASSIGN  */
+    OP_STAR_ASSIGN = 289,          /* OP_STAR_ASSIGN  */
+    OP_SLASH_ASSIGN = 290,         /* OP_SLASH_ASSIGN  */
+    OP_PLUS = 291,                 /* OP_PLUS  */
+    OP_MINUS = 292,                /* OP_MINUS  */
+    OP_STAR = 293,                 /* OP_STAR  */
+    OP_SLASH = 294,                /* OP_SLASH  */
+    OP_DOUBLE_SLASH = 295,         /* OP_DOUBLE_SLASH  */
+    OP_MOD = 296,                  /* OP_MOD  */
+    OP_EQ = 297,                   /* OP_EQ  */
+    OP_NEQ = 298,                  /* OP_NEQ  */
+    OP_LT = 299,                   /* OP_LT  */
+    OP_LE = 300,                   /* OP_LE  */
+    OP_GT = 301,                   /* OP_GT  */
+    OP_GE = 302,                   /* OP_GE  */
+    OP_LSHIFT = 303,               /* OP_LSHIFT  */
+    OP_RSHIFT = 304,               /* OP_RSHIFT  */
+    OP_BIT_AND = 305,              /* OP_BIT_AND  */
+    OP_BIT_OR = 306,               /* OP_BIT_OR  */
+    OP_BIT_XOR = 307,              /* OP_BIT_XOR  */
+    OP_BIT_NOT = 308,              /* OP_BIT_NOT  */
+    LPAREN = 309,                  /* LPAREN  */
+    RPAREN = 310,                  /* RPAREN  */
+    LBRACKET = 311,                /* LBRACKET  */
+    RBRACKET = 312,                /* RBRACKET  */
+    LBRACE = 313,                  /* LBRACE  */
+    RBRACE = 314,                  /* RBRACE  */
+    COMMA = 315,                   /* COMMA  */
+    COLON = 316,                   /* COLON  */
+    DOT = 317,                     /* DOT  */
+    SEMICOLON = 318,               /* SEMICOLON  */
+    AT = 319,                      /* AT  */
+    ARROW = 320,                   /* ARROW  */
+    UMINUS = 321                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -129,7 +130,7 @@ union YYSTYPE
 
     int entry;   /* índice en la tabla de símbolos correspondiente */
 
-#line 133 "triton.tab.h"
+#line 134 "triton.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

@@ -48,6 +48,7 @@ void yyerror(const char *msg);
 
 /* ── Palabras reservadas ────────────────────────────────────── */
 %token KW_IMPORT KW_AS KW_DEF
+%token TRITON_JIT   /* token único: "@triton.jit" o "@tl.jit" */
 %token KW_IF KW_ELIF KW_ELSE
 %token KW_FOR KW_WHILE KW_IN
 %token KW_BREAK KW_CONTINUE KW_RETURN KW_PASS
@@ -144,13 +145,23 @@ simple_stmt
     | KW_BREAK
     | KW_CONTINUE
     | KW_PASS
-    | expr OP_ASSIGN       expr   /* asignación simple      */
-    | expr OP_PLUS_ASSIGN  expr   /* asignación aumentada + */
-    | expr OP_MINUS_ASSIGN expr   /* asignación aumentada - */
-    | expr OP_STAR_ASSIGN  expr   /* asignación aumentada * */
-    | expr OP_SLASH_ASSIGN expr   /* asignación aumentada / */
-    | expr                        /* expresión sola (p.ej. llamada) */
+    | primary OP_ASSIGN       expr   /* asignación simple      */
+    | primary OP_PLUS_ASSIGN  expr   /* asignación aumentada + */
+    | primary OP_MINUS_ASSIGN expr   /* asignación aumentada - */
+    | primary OP_STAR_ASSIGN  expr   /* asignación aumentada * */
+    | primary OP_SLASH_ASSIGN expr   /* asignación aumentada / */
+    | expr                           /* expresión sola (p.ej. llamada) */
     ;
+/*
+ * Nota: se usa primary como LHS de asignación (no target ni expr).
+ *   - Más restrictivo que expr: impide  1+2 = x  (no es primary).
+ *   - Más permisivo que un target rígido: evita el conflicto
+ *     reduce/reduce que surgía cuando IDENTIFIER DOT IDENTIFIER
+ *     competía entre target y primary con lookahead '('.
+ * En la práctica cubre todos los destinos válidos de Triton-DSL:
+ *   x = …   x.attr = …   x[i] = …   x.attr[i] = …
+ * Con shift/reduce resuelto por defecto (shift), funciona correctamente.
+ */
 
 /* ── Sentencias compuestas (bloque con INDENT/DEDENT) ─────────── */
 
@@ -186,15 +197,21 @@ decorated_def
     : decorator func_def
     ;
 
+/*
+ * decorator — el lexer ya garantiza que solo llega TRITON_JIT
+ * ("@triton.jit" o "@tl.jit") como token único.
+ * El AT genérico solo puede llegar si el input tiene un decorador
+ * no válido, disparando inmediatamente la rama de error.
+ */
 decorator
-    : AT dotted_name NEWLINE
-    | AT dotted_name LPAREN arg_list RPAREN NEWLINE
+    : TRITON_JIT NEWLINE
+    | TRITON_JIT LPAREN arg_list RPAREN NEWLINE
     | AT error
       { fprintf(stderr,
-            "  Regla rota : decorator → @ <nombre>\n"
-            "                         | @ <nombre>(<args>)\n"
-            "  Sugerencia : El decorador debe ser un nombre de función válido.\n"
-            "               Ejemplo: @tl.jit  o  @tl.jit()\n");
+            "  Regla rota : decorator → @triton.jit\n"
+            "                         | @triton.jit(<args>)\n"
+            "  Sugerencia : Solo se permiten @triton.jit o @tl.jit.\n"
+            "               Si la función no es un kernel, escríbela sin decorador.\n");
         YYABORT; }
     ;
 
@@ -413,18 +430,6 @@ atom
     | LBRACE   dict_items RBRACE
     ;
 
-/* ── Listas ───────────────────────────────────────────────────── */
-
-list_items
-    : /* vacío */
-    | expr_list
-    ;
-
-expr_list
-    : expr
-    | expr_list COMMA expr
-    ;
-
 /* ── Diccionarios ─────────────────────────────────────────────── */
 
 dict_items
@@ -435,6 +440,18 @@ dict_items
 dict_pairs
     : expr COLON expr
     | dict_pairs COMMA expr COLON expr
+    ;
+
+/* ── Listas ───────────────────────────────────────────────────── */
+
+list_items
+    : /* vacío */
+    | expr_list
+    ;
+
+expr_list
+    : expr
+    | expr_list COMMA expr
     ;
 
 /* ── Argumentos de llamada ────────────────────────────────────── */

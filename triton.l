@@ -570,7 +570,24 @@ OCTAL           [0-7]
 ","     { add_token("COMMA",     -1); return COMMA;     }
 ":"     { add_token("COLON",     -1); return COLON;     }
 "."     { add_token("DOT",       -1); return DOT;       }
-";"     { add_token("SEMICOLON", -1); /* semicolón: ignorado por el parser */ }
+";"     {
+    fprintf(stderr,
+        "[ERROR LEXICO] Carácter inesperado ';'\n"
+        "  Línea: %d\n"
+        "  Sugerencia : Triton-DSL no admite ';' para separar sentencias.\n"
+        "               Pon cada sentencia en su propia línea.\n",
+        yylineno);
+    stats.error_count++;
+    print_scanner_output(); print_id_table(); print_num_table();
+    print_str_table(); print_statistics();
+    exit(EXIT_FAILURE);
+}
+    /*
+     * Decoradores Triton válidos — reconocidos como token único.
+     * Flex usa longest-match, así que estas reglas tienen precedencia
+     * sobre la regla genérica "@" que queda solo para error recovery.
+     */
+"@triton.jit"   { add_token("TRITON_JIT", -1); return TRITON_JIT; }
 "@"     { add_token("AT",        -1); return AT;        }
 
     /* ────────────────────────────────────────────────────────────

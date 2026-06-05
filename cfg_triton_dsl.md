@@ -30,7 +30,7 @@ Un **bloque** se forma con `NEWLINE INDENT`, seguido de una o más sentencias, y
 Una **función** comienza con `def`, seguido del nombre del identificador, una lista de parámetros entre paréntesis, opcionalmente una anotación de retorno (`-> expr`), dos puntos y un bloque. Un parámetro puede tener valor por defecto (`param = expr`) y anotación de tipo (`param : tipo`).
 
 ### 1.5 Decoradores
-Un **decorador** es un `@` seguido de un nombre (posiblemente calificado con puntos) y opcionalmente una lista de argumentos entre paréntesis, terminado con `NEWLINE`.
+El único decorador válido en Triton-DSL es `@triton.jit` (con o sin argumentos). El lexer lo reconoce como token único `TRITON_JIT` mediante longest-match, antes de la regla genérica de `@`. Cualquier otro decorador llega al parser como `AT` y produce un error sintáctico inmediato.
 
 ### 1.6 Control de flujo
 - **if:** `if expr : suite` seguido de cero o más cláusulas `elif expr : suite` y opcionalmente `else : suite`.
@@ -40,8 +40,8 @@ Un **decorador** es un `@` seguido de un nombre (posiblemente calificado con pun
 ### 1.7 Sentencias simples
 - **return:** `return` opcionalmente seguido de una expresión.
 - **break / continue / pass:** tokens solos.
-- **Asignación:** un destino (identificador, acceso a atributo o subscript) seguido de `=` y una expresión.
-- **Asignación aumentada:** un destino seguido de `+=`, `-=`, `*=` o `/=` y una expresión.
+- **Asignación:** un `primary` (identificador, acceso a atributo, subscript o llamada encadenada) seguido de `=` y una expresión. Usar un LHS `primary` evita el conflicto reduce/reduce que surgía con un no-terminal `target` independiente.
+- **Asignación aumentada:** un `primary` seguido de `+=`, `-=`, `*=` o `/=` y una expresión.
 
 ### 1.8 Expresiones
 Las expresiones respetan la siguiente jerarquía de **precedencia** (de menor a mayor), con la recursión izquierda que impone **asociatividad izquierda** salvo donde se indica:
@@ -117,7 +117,10 @@ T = {
 
   -- Delimitadores --
   LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE,
-  COMMA, COLON, DOT, SEMICOLON, AT, ARROW
+  COMMA, COLON, DOT, SEMICOLON, AT, ARROW,
+
+  -- Token compuesto (lexer) --
+  TRITON_JIT    /* reconoce "@triton.jit" o "@tl.jit" como unidad */
 }
 ```
 
@@ -129,14 +132,13 @@ T = {
 V = {
   program, stmt_list, stmt,
   import_stmt,
-  decorated_def, decorator, decorator_args,
+  decorated_def, decorator,
   func_def, param_list, param_tail, param, default_param,
   suite,
   if_stmt, elif_chain,
   for_stmt, while_stmt,
   simple_stmt,
   return_stmt, assign_stmt, augassign_op,
-  target, subscript_target,
   expr_stmt,
   expr,
   or_expr, and_expr, not_expr,
@@ -149,6 +151,7 @@ V = {
   atom,
   arg_list, arg_tail, argument,
   list_items, list_tail,
+  dict_items, dict_pairs,
   slice,
   dotted_name, dotted_tail
 }
@@ -206,11 +209,8 @@ dotted_tail → DOT IDENTIFIER dotted_tail
 ```
 decorated_def → decorator func_def
 
-decorator     → AT dotted_name NEWLINE
-              | AT dotted_name LPAREN decorator_args RPAREN NEWLINE
-
-decorator_args → arg_list
-               | ε
+decorator     → TRITON_JIT NEWLINE
+              | TRITON_JIT LPAREN arg_list RPAREN NEWLINE
 
 func_def      → KW_DEF IDENTIFIER LPAREN param_list RPAREN COLON suite
               | KW_DEF IDENTIFIER LPAREN param_list RPAREN ARROW expr COLON suite
@@ -262,17 +262,13 @@ simple_stmt   → return_stmt
 return_stmt   → KW_RETURN expr
               | KW_RETURN
 
-assign_stmt   → target OP_ASSIGN expr
-              | target augassign_op expr
+assign_stmt   → primary OP_ASSIGN expr
+              | primary augassign_op expr
 
 augassign_op  → OP_PLUS_ASSIGN
               | OP_MINUS_ASSIGN
               | OP_STAR_ASSIGN
               | OP_SLASH_ASSIGN
-
-target        → IDENTIFIER
-              | IDENTIFIER DOT IDENTIFIER
-              | IDENTIFIER LBRACKET expr RBRACKET
 
 expr_stmt     → expr
 ```
@@ -368,6 +364,7 @@ atom          → IDENTIFIER
               | KW_NONE
               | LPAREN expr RPAREN
               | LBRACKET list_items RBRACKET
+              | LBRACE dict_items RBRACE
 ```
 
 ---
@@ -380,6 +377,12 @@ list_items    → expr list_tail
 
 list_tail     → COMMA expr list_tail
               | ε
+
+dict_items    → dict_pairs
+              | ε
+
+dict_pairs    → expr COLON expr
+              | dict_pairs COMMA expr COLON expr
 
 arg_list      → argument arg_tail
               | ε
@@ -397,8 +400,8 @@ argument      → expr
 
 | Componente | Descripción |
 |-----------|-------------|
-| **V** | 35 no-terminales (ver §2.3) |
-| **T** | 51 terminales / tokens (ver §2.2) |
+| **V** | 36 no-terminales (ver §2.3) |
+| **T** | 52 terminales / tokens (ver §2.2) |
 | **P** | Producciones listadas en §2.5 |
 | **S** | `program` |
 
@@ -409,3 +412,9 @@ argument      → expr
 2. **Recursión izquierda presente:** Las producciones de `expr`, `or_expr`, `and_expr`, `cmp_expr`, `bitor_expr`, `bitxor_expr`, `bitand_expr`, `shift_expr`, `add_expr`, `mul_expr` y `primary` son **inmediatamente recursivas por la izquierda**. Esto es correcto para un parser *bottom-up* (LR). Para un parser *top-down* (LL/Recursive Descent) deberán eliminarse aplicando la transformación `A → βA'  /  A' → αA' | ε`.
 
 3. **Dangling else:** Resuelto con la regla `elif_chain → ε`, que obliga a asociar el `else` con el `if` más cercano sin `else`. Equivalente a la regla *most-closely-nested*.
+
+4. **Decorador restringido (`TRITON_JIT`):** El lexer reconoce `"@triton.jit"` como token único `TRITON_JIT` (longest-match, antes de la regla genérica `@`). `decorator` solo acepta `TRITON_JIT`; cualquier otro `@nombre` llega al parser como `AT` y activa el error inmediatamente.
+
+5. **LHS de asignación (`primary`):** `assign_stmt` usa `primary` como destino en lugar del antiguo no-terminal `target` o de `expr`. Esto impide que expresiones aritméticas aparezcan como LHS (`1+2 = x` falla) sin introducir el conflicto reduce/reduce que surgía con un `target` competidor.
+
+6. **Semicolón (`SEMICOLON`):** El token `;` produce error léxico inmediato. Triton-DSL no admite separación de sentencias con `;`; cada sentencia debe ocupar su propia línea.
