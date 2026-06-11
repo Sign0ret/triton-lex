@@ -91,6 +91,20 @@ LexerStats stats = {0};
 typedef struct IDNode {
     int entry;
     char* lexeme;
+    /*
+     * role — rol semántico asignado por el PARSER durante el análisis
+     * sintáctico. El lexer lo inicializa como "identificador"; el parser
+     * lo actualiza vía update_id_role() al reconocer construcciones
+     * específicas de la gramática:
+     *   "funcion"        → def <nombre>(...)
+     *   "parametro"      → parámetro formal de una función
+     *   "variable"       → lado izquierdo de una asignación (= += -= *= /=)
+     *   "variable_ciclo" → variable de iteración en for <var> in ...
+     *   "alias_modulo"   → import <módulo> as <alias>
+     *   "modulo"         → nombre de módulo en import <módulo>
+     *   "identificador"  → (default) aparece en el código sin rol conocido
+     */
+    char* role;
     struct IDNode* next;
 } IDNode;
 
@@ -126,9 +140,33 @@ int insert_id(const char* lexeme) {
     stats.total_identifiers++;
     node->entry  = id_counter++;
     node->lexeme = strdup(lexeme);
+    node->role   = strdup("identificador");  /* rol por defecto; el parser lo actualiza */
     node->next   = id_head;
     id_head      = node;
     return node->entry;
+}
+
+/*
+ * update_id_role — llamada por el PARSER para actualizar el rol semántico
+ * de un identificador ya registrado en la tabla.
+ *
+ * Parámetros:
+ *   entry → índice devuelto por insert_id() (el yylval.entry del token)
+ *   role  → cadena que describe el rol: "funcion", "parametro", etc.
+ *
+ * Si el entry no existe (p.ej. -1 para primarios complejos) la función
+ * retorna sin hacer nada, lo que es seguro por diseño.
+ */
+void update_id_role(int entry, const char* role) {
+    IDNode* curr = id_head;
+    while (curr) {
+        if (curr->entry == entry) {
+            free(curr->role);
+            curr->role = strdup(role);
+            return;
+        }
+        curr = curr->next;
+    }
 }
 
 int insert_num(const char* lexeme, const char* type) {
@@ -166,13 +204,14 @@ int insert_str(const char* lexeme) {
 
 void print_id_table(void) {
     printf("\n--- Symbol Table: Identifiers ---\n");
-    printf("%-8s %-20s\n", "Entry #", "Lexeme");
+    printf("%-8s %-25s %-16s\n", "Entry #", "Lexeme", "Rol Semantico");
+    printf("%-8s %-25s %-16s\n", "-------", "------", "-------------");
     if (!id_head) { printf("La tabla está vacía.\n"); return; }
     IDNode* arr[id_counter];
     IDNode* curr = id_head;
     while (curr) { arr[curr->entry] = curr; curr = curr->next; }
     for (int i = 0; i < id_counter; i++)
-        printf("%-8d %-20s\n", arr[i]->entry, arr[i]->lexeme);
+        printf("%-8d %-25s %-16s\n", arr[i]->entry, arr[i]->lexeme, arr[i]->role);
 }
 
 void print_num_table(void) {
@@ -199,7 +238,7 @@ void print_str_table(void) {
 
 void free_symbol_tables(void) {
     IDNode* ic = id_head;
-    while (ic) { IDNode* n = ic->next; free(ic->lexeme); free(ic); ic = n; }
+    while (ic) { IDNode* n = ic->next; free(ic->lexeme); free(ic->role); free(ic); ic = n; }
     NumNode* nc = num_head;
     while (nc) { NumNode* n = nc->next; free(nc->lexeme); free(nc->type); free(nc); nc = n; }
     StrNode* sc = str_head;

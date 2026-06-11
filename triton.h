@@ -17,6 +17,20 @@ extern void print_id_table(void);
 extern void print_num_table(void);
 extern void print_str_table(void);
 
+/*
+ * update_id_role — actualiza el campo "role" de un IDNode ya existente.
+ * Llamada por el PARSER (triton.y) al reconocer construcciones semánticas:
+ *   func_def   → role = "funcion"
+ *   param      → role = "parametro"
+ *   for_stmt   → role = "variable_ciclo"
+ *   assignment → role = "variable"
+ *   import as  → role = "alias_modulo"
+ *   import mod → role = "modulo"
+ *
+ * Si entry == -1 (primario complejo sin identificador raíz), no hace nada.
+ */
+extern void update_id_role(int entry, const char* role);
+
 /* ── Estadísticas ───────────────────────────────────────────────── */
 extern void print_statistics(void);
 

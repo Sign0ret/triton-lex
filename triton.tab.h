@@ -64,7 +64,7 @@ extern int yydebug;
     KW_IMPORT = 265,               /* KW_IMPORT  */
     KW_AS = 266,                   /* KW_AS  */
     KW_DEF = 267,                  /* KW_DEF  */
-    KW_JIT = 268,                  /* KW_JIT  */
+    TRITON_JIT = 268,              /* TRITON_JIT  */
     KW_IF = 269,                   /* KW_IF  */
     KW_ELIF = 270,                 /* KW_ELIF  */
     KW_ELSE = 271,                 /* KW_ELSE  */
@@ -126,7 +126,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 36 "triton.y"
+#line 37 "triton.y"
 
     int entry;   /* índice en la tabla de símbolos correspondiente */
 

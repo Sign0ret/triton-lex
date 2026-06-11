@@ -26,6 +26,7 @@ extern char  yytext[];  /* texto del último token reconocido        */
 extern int   yytok_col; /* columna donde empezó ese token (Flex)    */
 
 void yyerror(const char *msg);
+int  yylex(void);   /* prototipo explícito: evita warning de declaración implícita */
 %}
 
 /* ════════════════════════════════════════════════════════════════
@@ -42,6 +43,20 @@ void yyerror(const char *msg);
 %token <entry> INT_LITERAL
 %token <entry> FLOAT_LITERAL
 %token <entry> STRING_LITERAL
+
+/*
+ * ── Tipos de no-terminales que propagan el entry ────────────
+ *
+ * primary y atom propagan el entry del identificador raíz cuando
+ * el primario es simple (p.ej. "x"), o -1 cuando es compuesto
+ * (p.ej. "x.attr", "a[i]", "f(...)").
+ * Esto permite que las reglas de asignación llamen a update_id_role()
+ * solo cuando el lado izquierdo es un identificador simple.
+ *
+ * dotted_name propaga el entry del último componente del nombre
+ * (p.ej. en "import triton.language as tl", propaga el entry de "language").
+ */
+%type <entry> primary atom dotted_name
 
 /* ── Tokens de estructura ───────────────────────────────────── */
 %token NEWLINE INDENT DEDENT
@@ -145,11 +160,27 @@ simple_stmt
     | KW_BREAK
     | KW_CONTINUE
     | KW_PASS
-    | primary OP_ASSIGN       expr   /* asignación simple      */
-    | primary OP_PLUS_ASSIGN  expr   /* asignación aumentada + */
-    | primary OP_MINUS_ASSIGN expr   /* asignación aumentada - */
-    | primary OP_STAR_ASSIGN  expr   /* asignación aumentada * */
-    | primary OP_SLASH_ASSIGN expr   /* asignación aumentada / */
+    | primary OP_ASSIGN       expr
+      /*
+       * Acción semántica: asignación simple  x = expr
+       * Si $1 >= 0, el lado izquierdo es un identificador simple;
+       * se actualiza su rol a "variable".  Si $1 == -1, el LHS es un
+       * primario compuesto (x.attr, a[i], etc.) y no hay entrada directa
+       * en la tabla de identificadores para actualizar.
+       */
+      { if ($1 >= 0) update_id_role($1, "variable"); }
+    | primary OP_PLUS_ASSIGN  expr
+      /* Acción semántica: asignación aumentada  x += expr */
+      { if ($1 >= 0) update_id_role($1, "variable"); }
+    | primary OP_MINUS_ASSIGN expr
+      /* Acción semántica: asignación aumentada  x -= expr */
+      { if ($1 >= 0) update_id_role($1, "variable"); }
+    | primary OP_STAR_ASSIGN  expr
+      /* Acción semántica: asignación aumentada  x *= expr */
+      { if ($1 >= 0) update_id_role($1, "variable"); }
+    | primary OP_SLASH_ASSIGN expr
+      /* Acción semántica: asignación aumentada  x /= expr */
+      { if ($1 >= 0) update_id_role($1, "variable"); }
     | expr                           /* expresión sola (p.ej. llamada) */
     ;
 /*
@@ -177,7 +208,15 @@ compound_stmt
 
 import_stmt
     : KW_IMPORT dotted_name
+      /* Acción semántica: el módulo ya fue marcado como "modulo"
+         dentro de dotted_name; no se requiere acción adicional. */
     | KW_IMPORT dotted_name KW_AS IDENTIFIER
+      /*
+       * Acción semántica: el identificador $4 es el alias local con el
+       * que se usará el módulo dentro del programa (p.ej. "tl" en
+       * "import triton.language as tl").  Se marca como "alias_modulo".
+       */
+      { update_id_role($4, "alias_modulo"); }
     | KW_IMPORT error
       { fprintf(stderr,
             "  Regla rota : import_stmt → import <módulo>\n"
@@ -188,7 +227,19 @@ import_stmt
 
 dotted_name
     : IDENTIFIER
+      /*
+       * Acción semántica: primer componente de un nombre de módulo.
+       * Se marca como "modulo" y se propaga su entry para que las
+       * reglas superiores puedan seguir la cadena.
+       */
+      { update_id_role($1, "modulo"); $$ = $1; }
     | dotted_name DOT IDENTIFIER
+      /*
+       * Acción semántica: componente adicional de un nombre calificado
+       * (p.ej. "language" en "triton.language").
+       * Se marca como "modulo" y se propaga el entry del último componente.
+       */
+      { update_id_role($3, "modulo"); $$ = $3; }
     ;
 
 /* ── Decoradores y definiciones de función ───────────────────── */
@@ -217,7 +268,19 @@ decorator
 
 func_def
     : KW_DEF IDENTIFIER LPAREN param_list RPAREN COLON suite
+      /*
+       * Acción semántica: definición de función sin anotación de retorno.
+       * $2 es el entry del identificador que da nombre a la función.
+       * Se actualiza su rol a "funcion" en la tabla de identificadores.
+       */
+      { update_id_role($2, "funcion"); }
     | KW_DEF IDENTIFIER LPAREN param_list RPAREN ARROW expr COLON suite
+      /*
+       * Acción semántica: definición de función CON anotación de retorno
+       * (p.ej.  def foo(x) -> int: ...).
+       * $2 es el entry del nombre de la función.
+       */
+      { update_id_role($2, "funcion"); }
     | KW_DEF IDENTIFIER LPAREN param_list RPAREN error
       { fprintf(stderr,
             "  Regla rota : func_def → def <nombre>(<params>) : <bloque>\n"
@@ -255,9 +318,26 @@ params
  */
 param
     : IDENTIFIER
+      /*
+       * Acción semántica: parámetro posicional simple  def f(x)
+       * $1 es el entry del identificador del parámetro.
+       */
+      { update_id_role($1, "parametro"); }
     | IDENTIFIER COLON expr
+      /*
+       * Acción semántica: parámetro con anotación de tipo  def f(x: int)
+       */
+      { update_id_role($1, "parametro"); }
     | IDENTIFIER OP_ASSIGN expr
+      /*
+       * Acción semántica: parámetro con valor por defecto  def f(x=0)
+       */
+      { update_id_role($1, "parametro"); }
     | IDENTIFIER COLON expr OP_ASSIGN expr
+      /*
+       * Acción semántica: parámetro con anotación y default  def f(x: int = 0)
+       */
+      { update_id_role($1, "parametro"); }
     ;
 
 /* ── Bloque (suite) ──────────────────────────────────────────── */
@@ -307,6 +387,13 @@ elif_chain
 
 for_stmt
     : KW_FOR IDENTIFIER KW_IN expr COLON suite
+      /*
+       * Acción semántica: bucle for  for i in expr:
+       * $2 es el entry del identificador de la variable de iteración.
+       * Se marca como "variable_ciclo" para distinguirla de variables
+       * de asignación ordinaria.
+       */
+      { update_id_role($2, "variable_ciclo"); }
     | KW_FOR IDENTIFIER KW_IN expr error
       { fprintf(stderr,
             "  Regla rota : for_stmt → for <var> in <expr> : <bloque>\n"
@@ -370,6 +457,12 @@ expr
     | expr OP_GE    expr
     | expr KW_IS    expr
     | expr KW_IN    expr
+    | expr KW_NOT KW_IN expr   /* operador "not in": x not in y  ≡  not (x in y)
+                                 * Bison resuelve el shift/reduce a favor de shift
+                                 * (comportamiento por defecto), lo que es correcto:
+                                 * cuando el stack tiene "expr KW_NOT" y el lookahead
+                                 * es KW_IN, se shifta KW_IN para completar esta regla.
+                                 * La precedencia se toma de KW_IN (comparación). */
     /* Bit a bit */
     | expr OP_BIT_OR  expr
     | expr OP_BIT_XOR expr
@@ -392,11 +485,19 @@ expr
 
 /* ── Primarios: acceso a atributo, subscript, llamada ───────── */
 
+/*
+ * primary propaga el entry del identificador raíz cuando el primario
+ * es un átomo simple (atom → IDENTIFIER).  Para primarios compuestos
+ * (acceso a atributo, subscript o llamada) se propaga -1 como centinela,
+ * indicando que no hay un único identificador raíz actualizable.
+ *
+ * Este valor es consumido por simple_stmt en las reglas de asignación.
+ */
 primary
-    : primary DOT IDENTIFIER
-    | primary LBRACKET subscript RBRACKET
-    | primary LPAREN arg_list RPAREN
-    | atom
+    : primary DOT IDENTIFIER      { $$ = -1; }  /* x.attr  → sin entrada raíz directa */
+    | primary LBRACKET subscript RBRACKET { $$ = -1; }  /* a[i]    → sin entrada raíz directa */
+    | primary LPAREN arg_list RPAREN      { $$ = -1; }  /* f(...)  → sin entrada raíz directa */
+    | atom                                { $$ = $1; }  /* propaga el entry del átomo        */
     ;
 
 /*
@@ -417,17 +518,22 @@ subscript
 
 /* ── Átomos ───────────────────────────────────────────────────── */
 
+/*
+ * atom propaga el entry del token cuando es un IDENTIFIER, para que
+ * primary pueda pasarlo a las reglas de asignación en simple_stmt.
+ * Para todos los demás átomos se propaga -1 (no aplica).
+ */
 atom
-    : IDENTIFIER
-    | INT_LITERAL
-    | FLOAT_LITERAL
-    | STRING_LITERAL
-    | KW_TRUE
-    | KW_FALSE
-    | KW_NONE
-    | LPAREN expr RPAREN
-    | LBRACKET list_items RBRACKET
-    | LBRACE   dict_items RBRACE
+    : IDENTIFIER               { $$ = $1; }   /* propaga el entry del identificador */
+    | INT_LITERAL              { $$ = -1; }
+    | FLOAT_LITERAL            { $$ = -1; }
+    | STRING_LITERAL           { $$ = -1; }
+    | KW_TRUE                  { $$ = -1; }
+    | KW_FALSE                 { $$ = -1; }
+    | KW_NONE                  { $$ = -1; }
+    | LPAREN expr RPAREN       { $$ = -1; }
+    | LBRACKET list_items RBRACKET { $$ = -1; }
+    | LBRACE   dict_items RBRACE   { $$ = -1; }
     ;
 
 /* ── Diccionarios ─────────────────────────────────────────────── */
