@@ -333,7 +333,7 @@ OCTAL           [0-7]
 
 [ \t]+          { /* Ignorar espacios en medio de la línea */ }
 
-\n[ \t]*|\r\n[ \t]* {
+\n([ \t]*\n)*[ \t]*|\r\n([ \t]*\r\n)*[ \t]* {
     /*
      * Continuación implícita: dentro de (), [] o {} los saltos de
      * línea se ignoran completamente (no generan NEWLINE/INDENT/DEDENT).
@@ -637,9 +637,14 @@ OCTAL           [0-7]
 
 <<EOF>> {
     if (top > 0) {
-        top--;
-        add_token("DEDENT", -1);
-        return DEDENT;
+        add_token("NEWLINE", -1);
+        tok_enqueue(NEWLINE);
+        while (top > 0) {
+            top--;
+            add_token("DEDENT", -1);
+            tok_enqueue(DEDENT);
+        }
+        return tok_dequeue();
     }
     return 0;
 }

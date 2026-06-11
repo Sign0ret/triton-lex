@@ -1,7 +1,7 @@
 import triton
 import triton.language as tl
 
-@tl.jit
+@triton.jit
 def add_kernel(x_ptr, y_ptr, output_ptr, n_elements, BLOCK_SIZE):
     pid = tl.program_id(axis=0)
     block_start = pid * BLOCK_SIZE
@@ -12,7 +12,7 @@ def add_kernel(x_ptr, y_ptr, output_ptr, n_elements, BLOCK_SIZE):
     output = x + y
     tl.store(output_ptr + offsets, output, mask=mask)
 
-@tl.jit
+@triton.jit
 def scale_kernel(ptr, scalar, n, BLOCK):
     pid = tl.program_id(axis=0)
     offsets = pid * BLOCK + tl.arange(0, BLOCK)

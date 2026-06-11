@@ -1,37 +1,28 @@
-import torch
 import triton
 import triton.language as tl
 
-@triton.jit
-def add_kernel(Out, In1, In2, stride_out, stride_in1, stride_in2, N, alpha, BLOCK_SIZE: tl.constexpr):
-    pid = tl.program_id(0)
-    block_start = pid * BLOCK_SIZE
-    offsets = block_start + tl.arange(0, BLOCK_SIZE)
-    mask = offsets < N
 
-def add(input, other, alpha=1, out=None):
-    if out is None:
-        out = torch.empty_like(input)
-    else:
-        out.copy_(input)
-        if out.shape != input.shape:
-            out = out.expand_as(input).contiguous()
-        if not in out.is_contiguous():
-            out = out.contiguous()
-    if not out.is_contiguous():
-        out = out.contiguous()
-    if not input.is_contiguous():
-        input = input.contiguous()
-    if isinstance(other, torch.Tensor):
-        if not other.is_contiguous():
-            other = other.contiguous()
-        other = other.expand_as(input)
-        if not other.is_contiguous():
-            other = other.contiguous()
-    else:
-        other = torch.tensor(other, dtype=input.dtype, device=input.device)
-    N = input.numel()
-    BLOCK_SIZE = 1024
-    grid = (triton.cdiv(N, BLOCK_SIZE),1)
-    add_kernel[grid](out, input, other, out.stride(0), input.stride(0), other.stride(0) != 0, N, alpha, BLOCK_SIZE=BLOCK_SIZE)
-    return out
+@triton.jit
+def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride, n_cols, BLOCK_SIZE: tl.constexpr):
+    row_idx = tl.program_id(0)
+
+    row_start_ptr = input_ptr + row_idx * input_row_stride
+    col_offsets = tl.arange(0, BLOCK_SIZE)
+
+    input_ptrs = row_start_ptr + col_offsets
+
+    mask = col_offsets < n_cols
+    row = tl.load(input_ptrs, mask=mask, other=-float("inf"))
+
+    # estabilidad numérica
+    row_minus_max = row - tl.max(row, axis=0)
+
+    numerator = tl.exp(row_minus_max)
+    denominator = tl.sum(numerator, axis=0)
+
+    softmax_output = numerator / denominator
+
+    output_row_start_ptr = output_ptr + row_idx * output_row_stride
+    output_ptrs = output_row_start_ptr + col_offsets
+
+    tl.store(output_ptrs, softmax_output, mask=mask)
