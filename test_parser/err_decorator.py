@@ -1,0 +1,3 @@
+@invalido
+def foo():
+    pass
