@@ -1,24 +1,7 @@
-/*
- * triton.y — Analizador Sintáctico para Triton-DSL
- *
- * Parser LALR(1) generado con Bison. Implementa la CFG especificada
- * en cfg_triton_dsl.md.  Recibe tokens de yylex() (definido en triton.l
- * a través del wrapper que drena la cola de NEWLINE/INDENT/DEDENT).
- *
- * Estructura del archivo:
- *   §1  Sección de declaraciones C
- *   §2  Declaraciones Bison (tokens, precedencia, tipos)
- *   §3  Producciones (gramática)
- *   §4  Código C de apoyo (yyerror, main)
- */
-
-/* ════════════════════════════════════════════════════════════════
-   §1  DECLARACIONES C
-   ════════════════════════════════════════════════════════════════ */
 %{
 #include <stdio.h>
 #include <stdlib.h>
-#include "triton.h"    /* print_* / free_* de lex.yy.c */
+#include "triton.h"    
 
 extern int   yylineno;  /* número de línea actual (Flex)          */
 extern FILE *yyin;      /* archivo fuente (Flex)                    */
@@ -29,23 +12,20 @@ void yyerror(const char *msg);
 int  yylex(void);   /* prototipo explícito: evita warning de declaración implícita */
 %}
 
-/* ════════════════════════════════════════════════════════════════
-   §2  DECLARACIONES BISON
-   ════════════════════════════════════════════════════════════════ */
 
-/* ── Tipo semántico ─────────────────────────────────────────── */
+/* Tipo semántico  */
 %union {
     int entry;   /* índice en la tabla de símbolos correspondiente */
 }
 
-/* ── Tokens con valor semántico ─────────────────────────────── */
+/* Tokens con valor semántico*/
 %token <entry> IDENTIFIER
 %token <entry> INT_LITERAL
 %token <entry> FLOAT_LITERAL
 %token <entry> STRING_LITERAL
 
 /*
- * ── Tipos de no-terminales que propagan el entry ────────────
+ * Tipos de no-terminales que propagan el entry 
  *
  * primary y atom propagan el entry del identificador raíz cuando
  * el primario es simple (p.ej. "x"), o -1 cuando es compuesto
@@ -58,10 +38,10 @@ int  yylex(void);   /* prototipo explícito: evita warning de declaración impl�
  */
 %type <entry> primary atom dotted_name
 
-/* ── Tokens de estructura ───────────────────────────────────── */
+/*  Tokens de estructura  */
 %token NEWLINE INDENT DEDENT
 
-/* ── Palabras reservadas ────────────────────────────────────── */
+/*  Palabras reservadas  */
 %token KW_IMPORT KW_AS KW_DEF
 %token TRITON_JIT   /* token único: "@triton.jit" o "@tl.jit" */
 %token KW_IF KW_ELIF KW_ELSE
@@ -70,25 +50,25 @@ int  yylex(void);   /* prototipo explícito: evita warning de declaración impl�
 %token KW_AND KW_OR KW_NOT KW_IS
 %token KW_TRUE KW_FALSE KW_NONE
 
-/* ── Operadores de asignación ───────────────────────────────── */
+/*  Operadores de asignación  */
 %token OP_ASSIGN
 %token OP_PLUS_ASSIGN OP_MINUS_ASSIGN OP_STAR_ASSIGN OP_SLASH_ASSIGN
 
-/* ── Operadores aritméticos ─────────────────────────────────── */
+/*  Operadores aritméticos  */
 %token OP_PLUS OP_MINUS OP_STAR OP_SLASH OP_DOUBLE_SLASH OP_MOD
 
-/* ── Operadores relacionales ────────────────────────────────── */
+/*  Operadores relacionales  */
 %token OP_EQ OP_NEQ OP_LT OP_LE OP_GT OP_GE
 
-/* ── Operadores bit a bit ───────────────────────────────────── */
+/*  Operadores bit a bit  */
 %token OP_LSHIFT OP_RSHIFT OP_BIT_AND OP_BIT_OR OP_BIT_XOR OP_BIT_NOT
 
-/* ── Delimitadores ──────────────────────────────────────────── */
+/*  Delimitadores  */
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
 %token COMMA COLON DOT SEMICOLON AT ARROW
 
 /*
- * ── Precedencia de operadores (menor → mayor) ───────────────
+ *  Precedencia de operadores (menor → mayor) 
  *
  * Estas declaraciones resuelven los conflictos shift/reduce que
  * surgen de la gramática ambigua de expresiones.  Corresponden
@@ -130,11 +110,11 @@ int  yylex(void);   /* prototipo explícito: evita warning de declaración impl�
 
 %%
 
-/* ════════════════════════════════════════════════════════════════
-   §3  PRODUCCIONES
-   ════════════════════════════════════════════════════════════════ */
+/*
+   PRODUCCIONES
+ */
 
-/* ── Programa ────────────────────────────────────────────────── */
+/*  Programa  */
 
 program
     : stmt_list
@@ -152,7 +132,7 @@ stmt_list
     | stmt_list NEWLINE          /* líneas en blanco */
     ;
 
-/* ── Sentencias simples (una línea) ──────────────────────────── */
+/*  Sentencias simples (una línea)  */
 
 simple_stmt
     : import_stmt
@@ -194,7 +174,7 @@ simple_stmt
  * Con shift/reduce resuelto por defecto (shift), funciona correctamente.
  */
 
-/* ── Sentencias compuestas (bloque con INDENT/DEDENT) ─────────── */
+/*  Sentencias compuestas (bloque con INDENT/DEDENT) ─ */
 
 compound_stmt
     : decorated_def
@@ -204,7 +184,7 @@ compound_stmt
     | while_stmt
     ;
 
-/* ── Importaciones ───────────────────────────────────────────── */
+/*  Importaciones  */
 
 import_stmt
     : KW_IMPORT dotted_name
@@ -242,7 +222,7 @@ dotted_name
       { update_id_role($3, "modulo"); $$ = $3; }
     ;
 
-/* ── Decoradores y definiciones de función ───────────────────── */
+/*  Decoradores y definiciones de función ─ */
 
 decorated_def
     : decorator func_def
@@ -340,7 +320,7 @@ param
       { update_id_role($1, "parametro"); }
     ;
 
-/* ── Bloque (suite) ──────────────────────────────────────────── */
+/*  Bloque (suite)  */
 
 /*
  * Un bloque siempre tiene la forma:
@@ -357,7 +337,7 @@ suite
         YYABORT; }
     ;
 
-/* ── Sentencia if / elif / else ──────────────────────────────── */
+/*  Sentencia if / elif / else  */
 
 /*
  * elif_chain → ε  resuelve el "dangling-else": Bison usa la regla
@@ -383,7 +363,7 @@ elif_chain
     | KW_ELSE COLON suite
     ;
 
-/* ── Bucles ──────────────────────────────────────────────────── */
+/*  Bucles  */
 
 for_stmt
     : KW_FOR IDENTIFIER KW_IN expr COLON suite
@@ -426,7 +406,7 @@ while_stmt
         YYABORT; }
     ;
 
-/* ── return ──────────────────────────────────────────────────── */
+/*  return  */
 
 /*
  * Conflicto shift/reduce esperado: después de KW_RETURN, Bison
@@ -438,10 +418,10 @@ return_stmt
     | KW_RETURN expr
     ;
 
-/* ════════════════════════════════════════════════════════════════
+/*
    EXPRESIONES
    (con precedencia resuelta por las declaraciones %left/%right)
-   ════════════════════════════════════════════════════════════════ */
+ */
 
 expr
     /* Operadores lógicos */
@@ -483,7 +463,7 @@ expr
     | primary
     ;
 
-/* ── Primarios: acceso a atributo, subscript, llamada ───────── */
+/*  Primarios: acceso a atributo, subscript, llamada ─ */
 
 /*
  * primary propaga el entry del identificador raíz cuando el primario
@@ -516,7 +496,7 @@ subscript
     | COLON
     ;
 
-/* ── Átomos ───────────────────────────────────────────────────── */
+/*  Átomos  */
 
 /*
  * atom propaga el entry del token cuando es un IDENTIFIER, para que
@@ -536,7 +516,7 @@ atom
     | LBRACE   dict_items RBRACE   { $$ = -1; }
     ;
 
-/* ── Diccionarios ─────────────────────────────────────────────── */
+/*  Diccionarios */
 
 dict_items
     : /* vacío */
@@ -548,7 +528,7 @@ dict_pairs
     | dict_pairs COMMA expr COLON expr
     ;
 
-/* ── Listas ───────────────────────────────────────────────────── */
+/*  Listas  */
 
 list_items
     : /* vacío */
@@ -560,7 +540,7 @@ expr_list
     | expr_list COMMA expr
     ;
 
-/* ── Argumentos de llamada ────────────────────────────────────── */
+/*  Argumentos de llamada  */
 
 arg_list
     : /* vacío */
@@ -585,9 +565,9 @@ argument
 
 %%
 
-/* ════════════════════════════════════════════════════════════════
-   §4  CÓDIGO C DE APOYO
-   ════════════════════════════════════════════════════════════════ */
+/*
+   4  CÓDIGO C DE APOYO
+ */
 
 /*
  * yyerror — llamada automáticamente por Bison al detectar un error.
@@ -626,11 +606,11 @@ int main(int argc, char **argv) {
     }
     yyin = f;
 
-    /* ── Análisis léxico + sintáctico ── */
+    /*  Análisis léxico + sintáctico  */
     int parse_result = yyparse();
     fclose(yyin);
 
-    /* ── Imprimir output del scanner y tablas ── */
+    /*  Imprimir output del scanner y tablas  */
     printf("\n════════════════════════════════════════════════════════════\n");
     printf("SCANNER OUTPUT\n");
     printf("════════════════════════════════════════════════════════════\n");
@@ -640,7 +620,7 @@ int main(int argc, char **argv) {
     print_str_table();
     print_statistics();
 
-    /* ── Resultado del análisis sintáctico ── */
+    /*  Resultado del análisis sintáctico  */
     printf("════════════════════════════════════════════════════════════\n");
     if (parse_result == 0) {
         printf("ANÁLISIS SINTÁCTICO: [OK] — El programa es sintácticamente correcto.\n");
@@ -649,7 +629,7 @@ int main(int argc, char **argv) {
     }
     printf("════════════════════════════════════════════════════════════\n\n");
 
-    /* ── Liberar memoria ── */
+    /*  Liberar memoria  */
     free_scanner_output();
     free_symbol_tables();
 

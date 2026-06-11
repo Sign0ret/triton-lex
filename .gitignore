@@ -1,4 +1,7 @@
 triton_lexer
+triton_parser
 lex.yy.c
+*.tab.c
+*.tab.h
 triton.tab.c
 triton.tab.h
